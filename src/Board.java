@@ -21,19 +21,21 @@ abstract class Board {
     public BoardNode getNextNode(BoardNode current, int steps, Scanner scanner) {
         BoardNode temp = current;
         boolean isShortcut = false;
+        /*
+        //빽도이면 현재 경로의 이전 노드로 이동
+        if(steps == -1){
+            temp = temp.prev;
+        }
+        */
         if (temp.isIntersection) { //temp: 시작점 제외한 교차점이면
             isShortcut = true;
             System.out.println("교차점 " + temp + "에 도착했습니다.");
-            temp = temp.shortcut; // 최단 경로 방향으로 한 칸 이동
-        } else { //temp: 시작점이거나 교차점이 아니면
-            temp = temp.next; // 두 번째 최단 경로 방향으로 한 칸 이동
         }
-        for (int i = 1; i < steps; i++) {
+        for (int i = 0; i < steps; i++) {
             if (temp == null) break;
-            // 사용자의 분기 선택 X
-            // 프로그렘 내에서 최단경로로 갈지 두번째 경로로 갈지 선택
+            // BoardNode prevNode = temp;
             if(isShortcut) {  //최단경로로 이동해야 하는 경우
-                if(temp.isCenter){ //temp가 중앙점에 있으면 shortcut 방향으로 이동
+                if(temp.isIntersection){ //temp가 중앙점에 있으면 shortcut 방향으로 이동
                     temp = temp.shortcut;
                 }
                 else{
@@ -42,8 +44,8 @@ abstract class Board {
             }
             else{ //두번째 경로로 이동해야 하는 경우
                 temp = temp.next; //두 번째 경로로 이동
-
             }
+            // temp.prev = prevNode;
         }
         return temp;
     }
@@ -134,6 +136,7 @@ class SquareBoard extends Board {
         }
         for (int i = 0; i < 19; i++) {
             outer[i].next = outer[i+1];
+            // outer[i+1].prev = outer[i];
         }
         outer[19].next = outer[0];
         start = outer[0];  // 출발(0번)
@@ -160,20 +163,24 @@ class SquareBoard extends Board {
         outer[15].isIntersection = true;
         center.isIntersection = true;
 
-        //중앙점 지정
-        center.isCenter = true;
-
         // shortcut 설정 (최단 경로로 갈 때 바로 다음 노드)
         outer[5].shortcut  = n22;  // 코너 0 → n20
         outer[10].shortcut  = n24;  // 코너 5 → n22
         outer[15].shortcut = outer[16];  // 코너 10 → n24
         center.shortcut = n21;  // 코너 15 → n26
 
-        // 기타 경로 설정
+        // 기타 경로 설정 - next
         n22.next = n23;   n23.next = center;
         n24.next = n25;   n25.next = center;
         center.next = n27;  n27.next = n26;
         n21.next = n20;  n20.next = outer[0];
+        /*
+        //기타 경로 설정 - prev
+        n23.prev = n22;     n22.prev = outer[5];
+        n25.prev = n24;     n24.prev = outer[10];
+        n26.prev = n27;     outer[15].prev = outer[15];
+        n21.prev = n20;     n20.prev = outer[5];
+        */
     }
 
     @Override
