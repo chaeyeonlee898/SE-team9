@@ -47,6 +47,10 @@ abstract class Board {
                 temp = temp.next; //두 번째 경로로 이동
             }
             // temp.prev = prevNode;
+            // #3 issue) 말이 완주 후 시작점을 지나면 게임 종료
+            if (temp == getStart() && current != getStart()) {
+                return getStart();
+            }
         }
         return temp;
     }
