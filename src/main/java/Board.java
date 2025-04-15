@@ -250,3 +250,4 @@ class HexagonBoard extends Board {
         System.out.println("(back to start)");
     }
 }
+// test
