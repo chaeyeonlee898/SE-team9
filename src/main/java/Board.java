@@ -22,12 +22,7 @@ abstract class Board {
     public BoardNode getNextNode(BoardNode current, int steps, Scanner scanner) {
         BoardNode temp = current;
         boolean isShortcut = false;
-        /*
-        //빽도이면 현재 경로의 이전 노드로 이동
-        if(steps == -1){
-            temp = temp.prev;
-        }
-        */
+
         if (temp.isIntersection) { //temp: 시작점 제외한 교차점이면
             isShortcut = true;
             System.out.println("교차점 " + temp + "에 도착했습니다.");
@@ -47,6 +42,10 @@ abstract class Board {
                 temp = temp.next; //두 번째 경로로 이동
             }
             // temp.prev = prevNode;
+            // #3 issue) 말이 완주 후 시작점을 지나면 게임 종료
+            if (temp == getStart() && current != getStart()) {
+                return getStart();
+            }
         }
         return temp;
     }
@@ -54,68 +53,115 @@ abstract class Board {
     // 업(스택) 기능 포함 movePiece() 메서드.
     // 만약 말이 아직 보드에 진입하지 않았다면(position == null),
     // 그 말을 보드에 진입시키고 그 다음 이동 계산을 수행합니다.
-    // 그리고 상대 말을 잡으면 "집" (position == null)으로 돌려보냅니다.
+    // 그리고 상대 말을 잡으면 "집" (position == null)으로 돌려보냅니다.1
     public boolean movePiece(Piece piece, int steps, Scanner scanner) {
-        BoardNode src;
-        // 말이 보드에 아직 없다면("집"에 있음)
-        if (piece.position == null) {
-            src = getStart();
-        } else {
-            src = piece.position;
+        // 0) 빽도 처리: 한 칸 뒤로
+        if (steps == -1) {
+            if (piece.position == null) {
+                System.out.println("아직 보드에 진입하지 않아 빽도 불가. 제자리에 머무릅니다.");
+                return false;
+            }
+            if (piece.moveHistory.isEmpty()) {
+                System.out.println("이전 위치 정보가 없어 빽도 불가. 제자리에 머무릅니다.");
+                return false;
+            }
+
+            BoardNode prev = piece.moveHistory.pop();
+            piece.position.pieces.remove(piece);
+
+            // 빽도로 캡처 검사
+            boolean captureOccurred = false;
+            for (Piece enemy : new ArrayList<>(prev.pieces)) {
+                if (enemy.owner != piece.owner) {
+                    captureOccurred = true;
+                    prev.pieces.remove(enemy);
+                    enemy.position = null;
+                    System.out.println(enemy.owner.getName()
+                        + "의 말이 빽도에 의해 캡처되어 집으로 돌아갑니다.");
+                }
+            }
+
+            prev.pieces.add(piece);
+            piece.position = prev;
+            System.out.println(piece.owner.getName()
+                + "의 말이 빽도로 " + prev + "로 한 칸 뒤로 이동했습니다.");
+            return captureOccurred;
         }
 
-        // 업(스택) 기능: 같은 팀의 말들을 모두 그룹(스택)으로 처리
+        // 1) 첫 진입 여부 및 src 결정
+        boolean firstEntry = (piece.position == null);
+        BoardNode src = firstEntry ? getStart() : piece.position;
+
+        // 2) “한 바퀴 돌아 출발점에 있는 상태”인 경우, 
+        //    빽도(-1) 외 어떤 steps이든 즉시 완주 처리
+        if (!firstEntry && src == getStart() && piece.hasLeftStart && steps > 0) {
+            piece.finished = true;
+            System.out.println(piece.owner.getName() + "의 말이 완주했습니다!");
+            return false;
+        }
+
+        // 3) 업(스택) 기능: 같은 팀 말 묶기
         List<Piece> stack = new ArrayList<>();
-        if (piece.position == null) {
-            // 보드에 안 올라간 경우에는 단독 처리
+        if (firstEntry) {
             stack.add(piece);
         } else {
             for (Piece p : new ArrayList<>(src.pieces)) {
-                if (p.owner == piece.owner) {
-                    stack.add(p);
-                }
+                if (p.owner == piece.owner) stack.add(p);
             }
-            for (Piece p : stack) {
-                src.pieces.remove(p);
+            for (Piece p : stack) src.pieces.remove(p);
+        }
+
+        // 4) 단계별 경로 계산
+        List<BoardNode> path = new ArrayList<>();
+        BoardNode cur = src;
+        for (int i = 0; i < steps; i++) {
+            cur = getNextNode(cur, 1, scanner);
+            path.add(cur);
+        }
+        BoardNode dest = cur;
+
+        // 5) 첫 진입 후 ‘한 바퀴 나감’ 플래그 설정
+        if (firstEntry && dest != getStart()) {
+            piece.hasLeftStart = true;
+        }
+
+        // 6) 경로에 출발점(start)을 지나친 경우 완주
+        if (!firstEntry) {
+            for (int i = 0; i < path.size() - 1; i++) {
+                if (path.get(i) == getStart()) {
+                    for (Piece p : stack) p.finished = true;
+                    System.out.println(piece.owner.getName()
+                        + "의 업(" + stack.size() + "개)이 완주했습니다!");
+                    return false;
+                }
             }
         }
 
-        BoardNode dest = getNextNode(src, steps, scanner);
-
-        // 도착지가 출발점이고, 현재 말이 이미 보드에 있었다면 스택 전체 완주 처리
-        if (dest == getStart() && piece.position != null) {
-            for (Piece p : stack) {
-                p.finished = true;
+        // 7) 캡처 처리
+        boolean captureOccurred = false;
+        for (Piece enemy : new ArrayList<>(dest.pieces)) {
+            if (enemy.owner != piece.owner) {
+                captureOccurred = true;
+                dest.pieces.remove(enemy);
+                enemy.position = null;
+                System.out.println(enemy.owner.getName()
+                    + "의 말이 캡처되어 집으로 돌아갑니다.");
             }
-            System.out.println(piece.owner.getName() + "의 업(" + stack.size() + "개) 가 완주했습니다!");
-            return false;
-        } else {
-            // 캡쳐 처리: 도착 칸에 상대 말이 있다면, 그 적군 스택 전체를 "집"으로 보냄.
-            boolean captureOccurred = false;
-            if (!dest.pieces.isEmpty()) {
-                List<Piece> enemy = new ArrayList<>();
-                for (Piece p : new ArrayList<>(dest.pieces)) {
-                    if (p.owner != piece.owner) {
-                        enemy.add(p);
-                    }
-                }
-                if (!enemy.isEmpty()) {
-                    captureOccurred = true;
-                    for (Piece p : enemy) {
-                        dest.pieces.remove(p);
-                        p.position = null;  // 캡쳐된 말은 집으로 돌아감.
-                        System.out.println(p.owner.getName() + "의 업(" + p + ") 가 캡쳐되어 집으로 돌아갑니다.");
-                    }
-                }
-            }
-            // 스택 전체를 도착 칸에 추가하고 각 말의 위치 업데이트
-            for (Piece p : stack) {
-                dest.pieces.add(p);
-                p.position = dest;
-            }
-            System.out.println(piece.owner.getName() + "의 업(" + stack.size() + "개) 가 " + dest + "로 이동했습니다.");
-            return captureOccurred;
         }
+
+        // 8) 이동 및 이력 기록
+        for (Piece p : stack) {
+            p.moveHistory.push(src);
+            for (int i = 0; i < path.size() - 1; i++) {
+                p.moveHistory.push(path.get(i));
+            }
+            dest.pieces.add(p);
+            p.position = dest;
+        }
+
+        System.out.println(piece.owner.getName()
+            + "의 업(" + stack.size() + "개)이 " + dest + "로 이동했습니다.");
+        return captureOccurred;
     }
 
     public abstract void printBoard();
@@ -135,14 +181,7 @@ class SquareBoard extends Board {
         for (int i = 0; i < 20; i++) {
             outer[i] = new BoardNode(i, String.valueOf(i));
         }
-        for (int i = 0; i < 19; i++) {
-            outer[i].next = outer[i+1];
-            // outer[i+1].prev = outer[i];
-        }
-        outer[19].next = outer[0];
-        start = outer[0];  // 출발(0번)
-
-        // 2) 안쪽 X자 경로: 총 9개 노드 (20~28)
+     // 2) 안쪽 X자 경로: 총 9개 노드 (20~28)
         //    각 코너에서 2개의 중간 노드를 거쳐 중앙(28)로 연결
         //    - 코너 0: 0 → 20 → 21 → 28
         //    - 코너 5: 5 → 22 → 23 → 28
@@ -157,6 +196,20 @@ class SquareBoard extends Board {
         BoardNode n26 = new BoardNode(26, "26");
         BoardNode n27 = new BoardNode(27, "27");
         BoardNode center = new BoardNode(28, "Center");
+        
+        for (int i = 0; i < 19; i++) {
+            outer[i].next = outer[i+1];
+            outer[i+1].prev = outer[i];
+        }
+        outer[19].next = outer[0];
+        outer[0].prev = outer[19];
+        
+        n20.prev = n21;  n21.prev = center;
+        n22.prev = outer[5];  n23.prev = n22;
+        n24.prev = outer[10]; n25.prev = n24;
+        n26.prev = n27;  n27.prev = center;
+        center.prev = n25;
+        start = outer[0];  // 출발(0번)
 
         //교차점 지정 - 5, 10, 15, center
         outer[5].isIntersection = true;
@@ -250,5 +303,3 @@ class HexagonBoard extends Board {
         System.out.println("(back to start)");
     }
 }
-
-// test 2

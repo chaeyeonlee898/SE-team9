@@ -7,7 +7,7 @@ import java.util.Scanner;
 class Game {
     List<Player> players;
     Board board;
-    int currentTurn = 0;
+    int currentTurn = 0; //플레이어 인덱스
     Random random = new Random();
 
     public Game(int numPlayers, int piecesPerPlayer, Board board) {
@@ -27,10 +27,10 @@ class Game {
 
             System.out.println("윷 던지기 방식 선택 (1: 지정, 2: 랜덤): ");
             int mode = scanner.nextInt();
-            List<YutResult> results = new ArrayList<>();
+            List<YutResult> results = new ArrayList<>(); //윷 결과 리스트
 
-            boolean extra = false;
-            if (mode == 1) {
+            boolean extra = false; //윷,모일 때 추가 던지기
+            if (mode == 1) { //지정일 때
                 do{
                     if(extra){
                         System.out.println("추가 윷 던지기 기회 발생!");
@@ -61,7 +61,7 @@ class Game {
                 } while (extra);
             }
 
-            for (YutResult res : results) {
+            for (YutResult res : results) { //지정이나 랜덤으로 윷을 던지면 항상 말 이동과 턴 변경
                 System.out.println("\n적용할 윷 결과: " + res);
                 System.out.println("이동할 말 선택 (인덱스): ");
                 for (int i = 0; i < player.pieces.size(); i++) {
