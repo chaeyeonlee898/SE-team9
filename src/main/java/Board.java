@@ -25,6 +25,13 @@ abstract class Board {
     // 첫 스텝에서는, 만약 현재 노드가 시작(0번)이라면 shortcut은 무시하고 외곽 길을 따라 갑니다.
     public BoardNode getNextNode(BoardNode current, int steps) {
         BoardNode temp = current;
+        boolean isShortcut = false;
+
+        if (temp.isIntersection) { //temp: 시작점 제외한 교차점이면
+            isShortcut = true;
+            System.out.println("교차점 " + temp + "에 도착했습니다.");
+        }
+
         for (int i = 0; i < steps; i++) {
             if (temp == null) break;
             boolean lastStep = (i == steps - 1);
@@ -60,15 +67,21 @@ abstract class Board {
         System.out.println("[DEBUG] " + piece.owner.getName()
                 + " 호출 movePiece(steps=" + steps + ")");
 
-        // 0) 빽도 처리
+        // 0) 빽도 처리: 한 칸 뒤로
         if (steps == -1) {
-            if (piece.position == null || piece.moveHistory.isEmpty()) {
+            if (piece.position == null) {
                 System.out.println("아직 보드에 진입하지 않아 빽도 불가. 제자리에 머무릅니다.");
                 return false;
             }
+            if (piece.moveHistory.isEmpty()) {
+                System.out.println("이전 위치 정보가 없어 빽도 불가. 제자리에 머무릅니다.");
+                return false;
+            }
+
             BoardNode prev = piece.moveHistory.pop();
             piece.position.pieces.remove(piece);
 
+            // 빽도로 캡처 검사
             boolean captureOccurred = false;
             for (Piece enemy : new ArrayList<>(prev.pieces)) {
                 if (enemy.owner != piece.owner) {
@@ -76,6 +89,7 @@ abstract class Board {
                     prev.pieces.remove(enemy);
                     enemy.position = null;
                     System.out.println("[DEBUG] 빽도로 캡처: " + enemy.owner.getName());
+
                 }
             }
 
@@ -226,6 +240,7 @@ class SquareBoard extends PolygonBoard {
             nodes.add(node);
         }
         BoardNode center = find(28);
+        
         center.isIntersection = true;
 
         // 2) 내부 노드 간 외곽(다음) 연결 (X자 경로)
