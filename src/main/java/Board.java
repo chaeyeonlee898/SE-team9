@@ -5,9 +5,13 @@ import java.util.Scanner;
 
 abstract class Board {
     protected BoardNode start;  // 출발(시작) 노드
+    protected final List<BoardNode> nodes = new ArrayList<>();
 
     public Board() {
         buildBoard();
+    }
+
+    public Board(int i, int i1) {
     }
 
     // 각 하위 보드에서 보드 노드 그래프를 구성
@@ -19,110 +23,188 @@ abstract class Board {
 
     // 현재 노드에서 steps만큼 이동한 노드를 계산합니다.
     // 첫 스텝에서는, 만약 현재 노드가 시작(0번)이라면 shortcut은 무시하고 외곽 길을 따라 갑니다.
-    public BoardNode getNextNode(BoardNode current, int steps, Scanner scanner) {
+    public BoardNode getNextNode(BoardNode current, int steps) {
         BoardNode temp = current;
-        boolean isShortcut = false;
-        /*
-        //빽도이면 현재 경로의 이전 노드로 이동
-        if(steps == -1){
-            temp = temp.prev;
-        }
-        */
-        if (temp.isIntersection) { //temp: 시작점 제외한 교차점이면
-            isShortcut = true;
-            System.out.println("교차점 " + temp + "에 도착했습니다.");
-        }
         for (int i = 0; i < steps; i++) {
             if (temp == null) break;
-            // BoardNode prevNode = temp;
-            if(isShortcut) {  //최단경로로 이동해야 하는 경우
-                if(temp.isIntersection){ //temp가 중앙점에 있으면 shortcut 방향으로 이동
-                    temp = temp.shortcut;
-                }
-                else{
-                    temp = temp.next;
-                }
+            boolean lastStep = (i == steps - 1);
+
+            // ★ 시작점(start)에서는 절대 shortcut을 타지 않도록 temp != start 추가
+            if (lastStep
+                    && temp != start
+                    && temp.isIntersection
+                    && temp.shortcut != null) {
+                // 정확히 교차점에 멈췄을 때만 최단 경로로
+                temp = temp.shortcut;
+            } else {
+                // 그 외 모든 경우 외곽(next) 이동
+                temp = temp.next;
             }
-            else{ //두번째 경로로 이동해야 하는 경우
-                temp = temp.next; //두 번째 경로로 이동
-            }
-            // temp.prev = prevNode;
-            // #3 issue) 말이 완주 후 시작점을 지나면 게임 종료
-            if (temp == getStart() && current != getStart()) {
-                return getStart();
+
+            // 중간에 start를 재도달하면 즉시 완주 처리
+            if (temp == start && i < steps - 1) {
+                return start;
             }
         }
         return temp;
     }
 
+
     // 업(스택) 기능 포함 movePiece() 메서드.
     // 만약 말이 아직 보드에 진입하지 않았다면(position == null),
     // 그 말을 보드에 진입시키고 그 다음 이동 계산을 수행합니다.
-    // 그리고 상대 말을 잡으면 "집" (position == null)으로 돌려보냅니다.
+    // 그리고 상대 말을 잡으면 "집" (position == null)으로 돌려보냅니다.1
     public boolean movePiece(Piece piece, int steps, Scanner scanner) {
-        BoardNode src;
-        // 말이 보드에 아직 없다면("집"에 있음)
-        if (piece.position == null) {
-            src = getStart();
-        } else {
-            src = piece.position;
+
+        // 디버그: 이동 시작
+        System.out.println("[DEBUG] " + piece.owner.getName()
+                + " 호출 movePiece(steps=" + steps + ")");
+
+        // 0) 빽도 처리
+        if (steps == -1) {
+            if (piece.position == null || piece.moveHistory.isEmpty()) {
+                System.out.println("아직 보드에 진입하지 않아 빽도 불가. 제자리에 머무릅니다.");
+                return false;
+            }
+            BoardNode prev = piece.moveHistory.pop();
+            piece.position.pieces.remove(piece);
+
+            boolean captureOccurred = false;
+            for (Piece enemy : new ArrayList<>(prev.pieces)) {
+                if (enemy.owner != piece.owner) {
+                    captureOccurred = true;
+                    prev.pieces.remove(enemy);
+                    enemy.position = null;
+                    System.out.println("[DEBUG] 빽도로 캡처: " + enemy.owner.getName());
+                }
+            }
+
+            prev.pieces.add(piece);
+            piece.position = prev;
+            System.out.println("[DEBUG] " + piece.owner.getName()
+                    + " 빽도로 이동 → " + prev);
+            return captureOccurred;
         }
 
-        // 업(스택) 기능: 같은 팀의 말들을 모두 그룹(스택)으로 처리
+        // 1) 첫 진입 여부 및 src 결정
+        boolean firstEntry = (piece.position == null);
+        BoardNode src = firstEntry ? getStart() : piece.position;
+
+        // 2) “한 바퀴 돌아 출발점에 있는 상태”인 경우, 
+        //    빽도(-1) 외 어떤 steps이든 즉시 완주 처리
+        if (!firstEntry && src == getStart() && piece.hasLeftStart && steps > 0) {
+            piece.finished = true;
+            System.out.println(piece.owner.getName() + "의 말이 완주했습니다!");
+            return false;
+        }
+
+        // 3) 업(스택) 기능: 같은 팀 말 묶기
         List<Piece> stack = new ArrayList<>();
-        if (piece.position == null) {
-            // 보드에 안 올라간 경우에는 단독 처리
+        if (firstEntry) {
             stack.add(piece);
         } else {
             for (Piece p : new ArrayList<>(src.pieces)) {
-                if (p.owner == piece.owner) {
-                    stack.add(p);
-                }
+                if (p.owner == piece.owner) stack.add(p);
             }
-            for (Piece p : stack) {
-                src.pieces.remove(p);
+            for (Piece p : stack) src.pieces.remove(p);
+        }
+
+        // 4) 단계별 경로 계산
+        List<BoardNode> path = new ArrayList<>();
+        BoardNode cur = src;
+        for (int i = 0; i < steps; i++) {
+            cur = getNextNode(cur, 1);
+            path.add(cur);
+        }
+        BoardNode dest = cur;
+
+        // 5) 첫 진입 후 ‘한 바퀴 나감’ 플래그 설정
+        if (firstEntry && dest != getStart()) {
+            piece.hasLeftStart = true;
+        }
+
+        // 6) 경로에 출발점(start)을 지나친 경우 완주
+        if (!firstEntry) {
+            for (int i = 0; i < path.size() - 1; i++) {
+                if (path.get(i) == getStart()) {
+                    for (Piece p : stack) p.finished = true;
+                    System.out.println(piece.owner.getName()
+                        + "의 업(" + stack.size() + "개)이 완주했습니다!");
+                    return false;
+                }
             }
         }
 
-        BoardNode dest = getNextNode(src, steps, scanner);
-
-        // 도착지가 출발점이고, 현재 말이 이미 보드에 있었다면 스택 전체 완주 처리
-        if (dest == getStart() && piece.position != null) {
-            for (Piece p : stack) {
-                p.finished = true;
+        // 7) 캡처 처리
+        boolean captureOccurred = false;
+        for (Piece enemy : new ArrayList<>(dest.pieces)) {
+            if (enemy.owner != piece.owner) {
+                captureOccurred = true;
+                dest.pieces.remove(enemy);
+                enemy.position = null;
+                System.out.println(enemy.owner.getName()
+                    + "의 말이 캡처되어 집으로 돌아갑니다.");
             }
-            System.out.println(piece.owner.getName() + "의 업(" + stack.size() + "개) 가 완주했습니다!");
-            return false;
-        } else {
-            // 캡쳐 처리: 도착 칸에 상대 말이 있다면, 그 적군 스택 전체를 "집"으로 보냄.
-            boolean captureOccurred = false;
-            if (!dest.pieces.isEmpty()) {
-                List<Piece> enemy = new ArrayList<>();
-                for (Piece p : new ArrayList<>(dest.pieces)) {
-                    if (p.owner != piece.owner) {
-                        enemy.add(p);
-                    }
-                }
-                if (!enemy.isEmpty()) {
-                    captureOccurred = true;
-                    for (Piece p : enemy) {
-                        dest.pieces.remove(p);
-                        p.position = null;  // 캡쳐된 말은 집으로 돌아감.
-                        System.out.println(p.owner.getName() + "의 업(" + p + ") 가 캡쳐되어 집으로 돌아갑니다.");
-                    }
-                }
-            }
-            // 스택 전체를 도착 칸에 추가하고 각 말의 위치 업데이트
-            for (Piece p : stack) {
-                dest.pieces.add(p);
-                p.position = dest;
-            }
-            System.out.println(piece.owner.getName() + "의 업(" + stack.size() + "개) 가 " + dest + "로 이동했습니다.");
-            return captureOccurred;
         }
+
+        // 8) 이동 및 이력 기록
+        for (Piece p : stack) {
+            p.moveHistory.push(src);
+            for (int i = 0; i < path.size() - 1; i++) {
+                p.moveHistory.push(path.get(i));
+            }
+            dest.pieces.add(p);
+            p.position = dest;
+        }
+
+        System.out.println(piece.owner.getName()
+            + "의 말(" + stack.size() + "개)이 " + dest + "로 이동했습니다.");
+        debugPrintAllNodes();
+        return captureOccurred;
+    }
+
+    /** 전체 노드 상태 디버그 출력 */
+    public void debugPrintAllNodes() {
+        System.out.print("[DEBUG BOARD] ");
+        for (BoardNode n : nodes) {
+            System.out.print(n.id + "[" + n.pieces.size() + "] ");
+        }
+        System.out.println();
     }
 
     public abstract void printBoard();
+}
+
+/**
+ * sides: 외곽 변의 개수, nodesPerSide: 변당 칸 수
+ */
+class PolygonBoard extends Board {
+    protected final BoardNode[] outer;
+
+    public PolygonBoard(int sides, int nodesPerSide) {
+        outer = new BoardNode[sides * nodesPerSide];
+        for (int i = 0; i < outer.length; i++) {
+            outer[i] = new BoardNode(i, String.valueOf(i));
+            nodes.add(outer[i]);
+        }
+        for (int i = 0; i < outer.length; i++) {
+            BoardNode curr = outer[i];
+            BoardNode next = outer[(i + 1) % outer.length];
+            curr.next = next;
+            next.prev = curr;
+        }
+        start = outer[0];
+    }
+
+    @Override
+    protected void buildBoard() {
+        // 외곽은 생성자에서 구성, 내부 경로는 서브클래스에서 추가
+    }
+
+    @Override
+    public void printBoard() {
+
+    }
 }
 
 //────────────────────────────────────────────────────────────
@@ -131,127 +213,170 @@ abstract class Board {
 // 안쪽 X자 경로: 20~28 (9개 노드)
 //  - 코너(0,5,10,15)에서만 shortcut 적용
 //  - 처음에는 말이 집에 있으므로 첫 이동 시 board.getStart().next부터 진행
-class SquareBoard extends Board {
-    @Override
-    protected void buildBoard() {
-        // 1) 외곽 트랙: 20개 노드 (0~19)
-        BoardNode[] outer = new BoardNode[20];
-        for (int i = 0; i < 20; i++) {
-            outer[i] = new BoardNode(i, String.valueOf(i));
-        }
-        for (int i = 0; i < 19; i++) {
-            outer[i].next = outer[i+1];
-            // outer[i+1].prev = outer[i];
-        }
-        outer[19].next = outer[0];
-        start = outer[0];  // 출발(0번)
 
-        // 2) 안쪽 X자 경로: 총 9개 노드 (20~28)
-        //    각 코너에서 2개의 중간 노드를 거쳐 중앙(28)로 연결
-        //    - 코너 0: 0 → 20 → 21 → 28
-        //    - 코너 5: 5 → 22 → 23 → 28
-        //    - 코너 10: 10 → 24 → 25 → 28
-        //    - 코너 15: 15 → 26 → 27 → 28
-        BoardNode n20 = new BoardNode(20, "20");
-        BoardNode n21 = new BoardNode(21, "21");
-        BoardNode n22 = new BoardNode(22, "22");
-        BoardNode n23 = new BoardNode(23, "23");
-        BoardNode n24 = new BoardNode(24, "24");
-        BoardNode n25 = new BoardNode(25, "25");
-        BoardNode n26 = new BoardNode(26, "26");
-        BoardNode n27 = new BoardNode(27, "27");
-        BoardNode center = new BoardNode(28, "Center");
 
-        //교차점 지정 - 5, 10, 15, center
-        outer[5].isIntersection = true;
-        outer[10].isIntersection = true;
-        outer[15].isIntersection = true;
+class SquareBoard extends PolygonBoard {
+    public SquareBoard() {
+        super(4, 5); // 4변 × 5칸 = 20칸 외곽
+
+        // 1) 내부 노드(20~27) 및 중심(28) 생성
+        int[] innerIds = {20,21,22,23,24,25,26,27,28};
+        for (int id : innerIds) {
+            BoardNode node = new BoardNode(id, String.valueOf(id));
+            nodes.add(node);
+        }
+        BoardNode center = find(28);
         center.isIntersection = true;
 
-        // shortcut 설정 (최단 경로로 갈 때 바로 다음 노드)
-        outer[5].shortcut  = n22;  // 코너 0 → n20
-        outer[10].shortcut  = n24;  // 코너 5 → n22
-        outer[15].shortcut = outer[16];  // 코너 10 → n24
-        center.shortcut = n21;  // 코너 15 → n26
+        // 2) 내부 노드 간 외곽(다음) 연결 (X자 경로)
+        // 경로: 5→20→21→28, 10→22→23→28, 28→26→27→0, 28→24→25→15
+        linkPath(new int[]{20,21,28});
+        linkPath(new int[]{22,23,28});
+        linkPath(new int[]{28,24,25});
+        linkPath(new int[]{28,26,27});
+        // 28(Center)→0 출발점(완주) 연결
+        center.next = find(0); find(0).prev = center;
 
-        // 기타 경로 설정 - next
-        n22.next = n23;   n23.next = center;
-        n24.next = n25;   n25.next = center;
-        center.next = n27;  n27.next = n26;
-        n21.next = n20;  n20.next = outer[0];
-        /*
-        //기타 경로 설정 - prev
-        n23.prev = n22;     n22.prev = outer[5];
-        n25.prev = n24;     n24.prev = outer[10];
-        n26.prev = n27;     outer[15].prev = outer[15];
-        n21.prev = n20;     n20.prev = outer[5];
-        */
+        // 3) 교차점 표시 및 최단 경로(shortcut) 설정
+        int[][] shortcuts = {
+                {0,27}, {5,20}, {10,22}, {15,25}
+        };
+        for (int[] sc : shortcuts) {
+            BoardNode corner = find(sc[0]);
+            corner.isIntersection = true;
+            corner.shortcut = find(sc[1]);
+        }
+    }
+
+    private void linkPath(int[] path) {
+        for (int i = 0; i < path.length - 1; i++) {
+            BoardNode a = find(path[i]);
+            BoardNode b = find(path[i+1]);
+            a.next = b; b.prev = a;
+        }
+    }
+
+    private BoardNode find(int id) {
+        return nodes.stream().filter(n->n.id==id).findFirst().orElse(null);
     }
 
     @Override
-    public void printBoard() {
-        System.out.println("----- 전통 윷놀이 사각형 판 (총 29개 노드) -----");
-        BoardNode curr = start;
-        for (int i = 0; i < 20; i++) {
-            System.out.print(curr + " -> ");
-            curr = curr.next;
-        }
-        System.out.println("(back to 0)");
-        System.out.println("안쪽 X자 경로: 코너 0,5,10,15에서 shortcut 적용 → Center(28)에서 분기");
-    }
+    protected void buildBoard() {}
 }
 
 //────────────────────────────────────────────────────────────
 // PentagonBoard 및 HexagonBoard (간단 예시)
-class PentagonBoard extends Board {
-    @Override
-    protected void buildBoard() {
-        BoardNode[] nodes = new BoardNode[17];
-        for (int i = 0; i < 17; i++) {
-            nodes[i] = new BoardNode(i, "P" + i);
+class PentagonBoard extends PolygonBoard {
+    public PentagonBoard() {
+        super(5, 5); // 5변 × 5칸 = 25칸 외곽
+
+        // 1) 내부 노드(25~34) 및 중심(35) 생성
+        int[] innerIds = {25,26,27,28,29,30,31,32,33,34,35};
+        for (int id : innerIds) {
+            BoardNode node = new BoardNode(id, String.valueOf(id));
+            nodes.add(node);
         }
-        for (int i = 0; i < 16; i++) {
-            nodes[i].next = nodes[i+1];
+        BoardNode center = find(35);
+        center.isIntersection = true;
+
+        // 2) 내부 노드 간 외곽(다음) 연결 (X자 경로)
+        // 경로: 5→25→26→35, 10→27→28→35, 15→29→30→35, 35→31→32→20, 35→33→34→0
+        linkPath(new int[]{25,26,35});
+        linkPath(new int[]{27,28,35});
+        linkPath(new int[]{29,30,35});
+        linkPath(new int[]{35,31,32});
+        linkPath(new int[]{35,33,34});
+        // 28(Center)→0 출발점(완주) 연결
+        center.next = find(0); find(0).prev = center;
+
+        // 3) 교차점 표시 및 최단 경로(shortcut) 설정
+        int[][] shortcuts = {
+                {34,0}, {5,25}, {10,27}, {15,29}, {32,20}
+        };
+        for (int[] sc : shortcuts) {
+            BoardNode corner = find(sc[0]);
+            corner.isIntersection = true;
+            corner.shortcut = find(sc[1]);
         }
-        nodes[16].next = nodes[0];
-        start = nodes[0];
+    }
+
+    private void linkPath(int[] path) {
+        for (int i = 0; i < path.length - 1; i++) {
+            BoardNode a = find(path[i]);
+            BoardNode b = find(path[i+1]);
+            a.next = b; b.prev = a;
+        }
+    }
+
+    private BoardNode find(int id) {
+        return nodes.stream().filter(n->n.id==id).findFirst().orElse(null);
     }
 
     @Override
+    protected void buildBoard() {}
+
+    @Override
     public void printBoard() {
-        System.out.println("----- 오각형 판 (간단 예시) -----");
-        BoardNode curr = start;
-        for (int i = 0; i < 17; i++) {
-            System.out.print(curr + " -> ");
-            curr = curr.next;
-        }
-        System.out.println("(back to start)");
+
     }
 }
 
-class HexagonBoard extends Board {
+class HexagonBoard extends PolygonBoard {
+    public HexagonBoard() {
+        super(6, 5); // 6변 × 5칸 = 30칸 외곽
+
+        // 1) 내부 노드(30~41) 및 중심(42) 생성
+        int[] innerIds = {30,31,32,33,34,35,36,37,38,39,40,41,42};
+        for (int id : innerIds) {
+            BoardNode node = new BoardNode(id, String.valueOf(id));
+            nodes.add(node);
+        }
+        BoardNode center = find(42);
+        center.isIntersection = true;
+
+        // 2) 내부 노드 간 외곽(다음) 연결 (X자 경로)
+        // 경로: 5→30→31→42, 10→32→33→42, 15→34→35→42, 20→36→37→42, 42→38→39→25, 42→40→41→0
+        linkPath(new int[]{30, 31, 42});
+        linkPath(new int[]{32, 33, 42});
+        linkPath(new int[]{34, 35, 42});
+        linkPath(new int[]{36, 37, 42});
+        linkPath(new int[]{42, 38, 39});
+        linkPath(new int[]{42, 40, 41});
+        // 28(Center)→0 출발점(완주) 연결
+        center.next = find(0);
+        find(0).prev = center;
+
+        // 3) 교차점 표시 및 최단 경로(shortcut) 설정
+        int[][] shortcuts = {
+                {41, 0}, {5, 30}, {10, 32}, {15, 34}, {20, 36}, {39, 25}
+        };
+        for (int[] sc : shortcuts) {
+            BoardNode corner = find(sc[0]);
+            corner.isIntersection = true;
+            corner.shortcut = find(sc[1]);
+        }
+    }
+
+    private void linkPath(int[] path) {
+        for (int i = 0; i < path.length - 1; i++) {
+            BoardNode a = find(path[i]);
+            BoardNode b = find(path[i+1]);
+            a.next = b; b.prev = a;
+        }
+    }
+
+    private BoardNode find(int id) {
+        return nodes.stream().filter(n->n.id==id).findFirst().orElse(null);
+    }
+
     @Override
     protected void buildBoard() {
-        BoardNode[] nodes = new BoardNode[19];
-        for (int i = 0; i < 19; i++) {
-            nodes[i] = new BoardNode(i, "H" + i);
-        }
-        for (int i = 0; i < 18; i++) {
-            nodes[i].next = nodes[i+1];
-        }
-        nodes[18].next = nodes[0];
-        start = nodes[0];
+
     }
 
     @Override
     public void printBoard() {
-        System.out.println("----- 육각형 판 (간단 예시) -----");
-        BoardNode curr = start;
-        for (int i = 0; i < 19; i++) {
-            System.out.print(curr + " -> ");
-            curr = curr.next;
-        }
-        System.out.println("(back to start)");
+
     }
 }
 // test
