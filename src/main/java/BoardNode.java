@@ -19,7 +19,7 @@ class BoardNode {
 
     @Override
     public String toString() {
-        return name + "(" + id + ")[" + pieces.size() + "]";
+        return name + "[" + pieces.size() + "]";
     }
 }
 
