@@ -103,7 +103,7 @@ class Game {
                     }
                     Piece chosen = player.pieces.get(pieceIdx);
                     if (chosen.finished) {
-                        System.out.println("이미 완주한 말입니다. 다른 말을 선택해주세요.");
+                        System.out.println("이미 완주된 말입니다");
                         continue;
                     }
 
