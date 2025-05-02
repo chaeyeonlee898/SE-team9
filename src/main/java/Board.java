@@ -1,4 +1,3 @@
-// Board.java
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -70,7 +69,6 @@ abstract class Board {
         List<BoardNode> path = new ArrayList<>();
         BoardNode cur = src;
         boolean corner5 = (src.id==5);
-        
         boolean corner10 = (src.id==10);
         // 오각형: 첫 세 꼭지점(5,10,15)만 중앙길로, 4번째(20)는 제외
         boolean cornerPent = this instanceof PentagonBoard && (src.id==5||src.id==10||src.id==15);
@@ -81,7 +79,7 @@ abstract class Board {
         for (int i=0;i<steps;i++){
             boolean last=(i==steps-1);
             if (i==0 && (corner10||cornerPent||cornerHex||delay5||delay28) && src.shortcut!=null) cur=src.shortcut;
-            else if (last && cur.isIntersection && cur.shortcut!=null && (corner10||(!corner5 && cur.id!=28))) cur=cur.shortcut;
+            else if (last && cur!=src && cur.isIntersection && cur.shortcut!=null && (corner10||(!corner5 && cur.id!=28))) cur=cur.shortcut;
             else cur=cur.next;
             path.add(cur);
         }
@@ -121,7 +119,6 @@ abstract class Board {
     public abstract void printBoard();
 }
 
-
 //────────────────────────────────────────────────────────────
 // PolygonBoard 클래스: 외곽 다각형 보드 기본 구현
 class PolygonBoard extends Board {
@@ -154,17 +151,14 @@ class SquareBoard extends PolygonBoard {
         // 내부 노드(20~28) 생성
         int[] inner = {20,21,22,23,24,25,26,27,28};
         for (int id : inner) {
-            nodes.add(new BoardNode(id, String.valueOf(id)));
-        }
+            nodes.add(new BoardNode(id, String.valueOf(id)));}
         // 중심 교차점 설정
         BoardNode center = find(28);
         center.isIntersection = true;
         // 내부 경로 연결
-        linkPath(new int[]{20,21,28});
-        linkPath(new int[]{22,23,28});
+        linkPath(new int[]{20,21,28}); linkPath(new int[]{22,23,28});
         // 중심에서 외곽으로 두 갈래
-        linkPath(new int[]{28,24,25,15});
-        linkPath(new int[]{26,27,0});
+        linkPath(new int[]{28,24,25,15}); linkPath(new int[]{26,27,0});
         // shortcut 설정
         int[][] sc = {{5,20},{10,22},{15,25},{0,27},{28,26}};
         for (int[] s : sc) {
@@ -194,10 +188,8 @@ class PentagonBoard extends PolygonBoard {
         for (int id : inner) nodes.add(new BoardNode(id, String.valueOf(id)));
         BoardNode center = find(35);
         center.isIntersection = true;
-        linkPath(new int[]{25,26,35});
-        linkPath(new int[]{27,28,35});
-        linkPath(new int[]{29,30,35});
-        linkPath(new int[]{31,32,20});
+        linkPath(new int[]{25,26,35}); linkPath(new int[]{27,28,35});
+        linkPath(new int[]{29,30,35}); linkPath(new int[]{31,32,20});
         linkPath(new int[]{33,34,0});
         center.next = find(0); find(0).prev = center;
         int[][] sc = {{5,25},{10,27},{15,29},{32,20},{34,0}};
@@ -238,4 +230,3 @@ class HexagonBoard extends PolygonBoard {
     @Override protected void buildBoard() {}
     @Override public void printBoard() {}
 }
-
