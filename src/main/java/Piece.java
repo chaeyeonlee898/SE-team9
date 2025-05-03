@@ -2,7 +2,7 @@ import java.util.Stack;
 
 class Piece {
     Player owner;
-    BoardNode position;
+    BoardNode position; //말이 위치한 보드노드
     boolean finished;
     boolean hasLeftStart = false;           // 한 바퀴 나감 플래그
     Stack<BoardNode> moveHistory = new Stack<>(); // 이동 이력
