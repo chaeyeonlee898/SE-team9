@@ -1,18 +1,13 @@
-import java.util.Stack;
-
+//Piece.java
 class Piece {
     Player owner;
-    BoardNode position; //말이 위치한 보드노드
+    BoardNode position;  // 처음에는 null (집에 있음)
     boolean finished;
-    boolean hasLeftStart = false;           // 한 바퀴 나감 플래그
-    Stack<BoardNode> moveHistory = new Stack<>(); // 이동 이력
-    boolean justStoppedAtIntersection = false;    // 최근 턴에 교차점에 정확히 멈췄는지
 
     public Piece(Player owner) {
         this.owner = owner;
         this.finished = false;
-        this.position = null;
-        this.justStoppedAtIntersection = false;
+        this.position = null; // 초기 상태: 집 (보드에 없음)
     }
 
     @Override

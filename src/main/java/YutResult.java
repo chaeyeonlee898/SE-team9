@@ -20,13 +20,14 @@ enum YutResult {
         return extra;
     }
 
+    //랜덤 윷 던지기 확률 수정
     public static YutResult throwYut(Random rand) {
-        int r = rand.nextInt(64);
+        int r = rand.nextInt(16);
         if (r == 0) return BACKDO;
-        if (r <= 16) return DO;
-        if (r <= 40) return GAE;
-        if (r <= 56) return GEOL;
-        if (r <= 60) return YUT;
+        if (r <= 3) return DO;
+        if (r <= 9) return GAE;
+        if (r <= 10) return GEOL;
+        if (r <= 13) return YUT;
         return MO;
     }
 
