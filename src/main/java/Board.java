@@ -8,9 +8,7 @@ import java.util.Scanner;
 abstract class Board {
     protected BoardNode start;                // 출발(완주) 지점 노드
     protected final List<BoardNode> nodes = new ArrayList<>();  // 모든 노드
-
     public Board() { buildBoard(); }
-    public Board(int i, int i1) { buildBoard(); }
     protected abstract void buildBoard();
     public BoardNode getStart() { return start; }
 
@@ -40,14 +38,19 @@ abstract class Board {
         System.out.println("[DEBUG] " + piece.owner.getName() + " 호출 movePiece(steps=" + steps + ")");
         boolean delayed = piece.justStoppedAtIntersection;
 
+        // 기본: outer 따라서
+        // curr 노드가 intersection이면 shortcut으로(마지막 intersection 제외)
         // 0. 빽도 처리
         if (steps == -1) {
             if (piece.position == null || piece.moveHistory.isEmpty()) {
                 System.out.println("빽도 불가. 제자리에 머뭅니다."); return false;
             }
+            // 1) 현재 위치 제거
+            piece.moveHistory.pop();
+            // 2) 한 칸 전 위치 꺼내기
             BoardNode prev = piece.moveHistory.pop();
-            if (piece.position.id == 24 && !piece.moveHistory.isEmpty() && piece.moveHistory.peek().id == 28)
-                prev = piece.moveHistory.pop();
+            //if (piece.position.id == 24 && !piece.moveHistory.isEmpty() && piece.moveHistory.peek().id == 28)
+              //  prev = piece.moveHistory.pop();
             piece.position.pieces.remove(piece);
             boolean cap=false;
             for (Piece e : new ArrayList<>(prev.pieces)) if (e.owner!=piece.owner) {
@@ -61,26 +64,48 @@ abstract class Board {
         }
 
         // 1. 첫 entry 및 업 플래그
-        boolean first = (piece.position==null);
-        BoardNode src = first? getStart(): piece.position;
+        boolean first = (piece.position==null); //처음 입장하는 경우
+        BoardNode src = first? getStart(): piece.position; //현재 보드노드(추적)
         if (first) piece.hasLeftStart=false;
 
-        // 2. 경로 계산
-        List<BoardNode> path = new ArrayList<>();
+        //2. 경로 설정
         BoardNode cur = src;
-        boolean corner5 = (src.id==5);
-        boolean corner10 = (src.id==10);
-        // 오각형: 첫 세 꼭지점(5,10,15)만 중앙길로, 4번째(20)는 제외
-        boolean cornerPent = this instanceof PentagonBoard && (src.id==5||src.id==10||src.id==15);
-        // 육각형: 마지막 꼭지점(25) 제외한 모든 outer 교차점에서 중앙길
+        List<BoardNode> path = new ArrayList<>();
+        // 마지막 꼭지점(15, 20, 25) 제외한 모든 outer 교차점에서 중앙길
+        boolean cornerSquare = this instanceof SquareBoard && src.isIntersection && src.id!=15;
+        boolean cornerPent = this instanceof PentagonBoard && src.isIntersection && src.id!=20;
         boolean cornerHex = this instanceof HexagonBoard && src.isIntersection && src.id!=25;
-        boolean delay5 = delayed && src.id==5;
-        boolean delay28= delayed && src.id==28;
-        for (int i=0;i<steps;i++){
-            boolean last=(i==steps-1);
-            if (i==0 && (corner10||cornerPent||cornerHex||delay5||delay28) && src.shortcut!=null) cur=src.shortcut;
-            else if (last && cur!=src && cur.isIntersection && cur.shortcut!=null && (corner10||(!corner5 && cur.id!=28))) cur=cur.shortcut;
-            else cur=cur.next;
+
+        boolean stopatIntersection = false;
+        boolean squareboardException = false;
+        if((cornerSquare || cornerPent || cornerHex) && cur.shortcut != null)
+            cur = cur.shortcut;
+        else
+            cur = cur.next;
+        path.add(cur);
+        BoardNode temp = cur;
+        for (int i = 0; i < steps-1; i++) {
+            if(temp.id ==23 && temp.next.id == 28){
+                squareboardException = true;
+                System.out.println("SquareBoardException");
+            }
+            if(squareboardException && temp.id == 28)
+                temp = temp.shortcut;
+            else
+                temp = temp.next;
+            System.out.println("temp: "+temp.id);
+        }
+        if(temp.isIntersection || squareboardException){
+            stopatIntersection = true;
+        }
+
+        for(int i=1;i<steps;i++){
+            if(i==steps-1 && cur.shortcut!=null && stopatIntersection){
+                cur = cur.shortcut;
+                stopatIntersection = false;
+            }
+            else
+                cur = cur.next;
             path.add(cur);
         }
         BoardNode dest=cur;
@@ -88,15 +113,8 @@ abstract class Board {
         if (src.id==5 && !delayed) {
             BoardNode fb=src; for(int i=0;i<steps;i++) fb=fb.next; dest=fb;
         }
-
-        // 3) 완주 처리: start를 한 칸 이상 지나쳐야 완주로 간주
-        if (!first && path.stream().limit(path.size() - 1).anyMatch(n -> n == start)) {
-            piece.finished = true;
-            System.out.println(piece.owner.getName() + "의 말이 완주했습니다!");
-            return false;
-        }
-
-        // 4) 업(스택) 기능
+        
+        // 3) 업(스택) 기능
         List<Piece> stack=new ArrayList<>();
         if (first) stack.add(piece);
         else {
@@ -104,6 +122,16 @@ abstract class Board {
             src.pieces.removeAll(stack);
         }
 
+        // 4) 완주 처리: start를 한 칸 이상 지나쳐야 완주로 간주
+        if (!first && path.stream().limit(path.size() - 1).anyMatch(n -> n == start)) {
+            for (Piece p : stack) {
+                p.finished = true;
+                System.out.println(p.owner.getName() + "의 말이 완주했습니다!");
+            }
+            return false;
+        }
+
+     
         // 5. 캡처
         boolean capO=false;
         for(Piece e:new ArrayList<>(dest.pieces)) if(e.owner!=piece.owner){capO=true; dest.pieces.remove(e); e.position=null;
@@ -130,14 +158,27 @@ class PolygonBoard extends Board {
             outer[i] = new BoardNode(i, String.valueOf(i));
             nodes.add(outer[i]);
         }
-        // 외곽 next/prev 연결
-        for (int i = 0; i < outer.length; i++) {
-            BoardNode curr = outer[i];
-            BoardNode nxt = outer[(i + 1) % outer.length];
-            curr.next = nxt;
-            nxt.prev = curr;
-        }
+        // 외곽 노드를 순환 연결
+        linkCycle(outer);
+        // 시작점 설정(기존대로)
         start = outer[0];
+    }
+
+    /** 주어진 노드들을 순서대로 연결(비순환) */
+    protected void linkPath(BoardNode... path) {
+        for (int i = 0; i < path.length - 1; i++) {
+            path[i].next = path[i+1];
+            path[i+1].prev = path[i];
+        }
+    }
+    /** 주어진 노드들을 순환 구조로 연결(마지막→첫번째까지) */
+    protected void linkCycle(BoardNode... cycle) {
+        for (int i = 0; i < cycle.length; i++) {
+            BoardNode curr = cycle[i];
+            BoardNode next = cycle[(i+1) % cycle.length];
+            curr.next = next;
+            next.prev = curr;
+        }
     }
     @Override protected void buildBoard() {}
     @Override public void printBoard() {}
@@ -148,35 +189,37 @@ class PolygonBoard extends Board {
 class SquareBoard extends PolygonBoard {
     public SquareBoard() {
         super(4, 5); // 4변 × 5칸 = 20칸 외곽
-        // 내부 노드(20~28) 생성
-        int[] inner = {20,21,22,23,24,25,26,27,28};
-        for (int id : inner) {
-            nodes.add(new BoardNode(id, String.valueOf(id)));}
-        // 중심 교차점 설정
-        BoardNode center = find(28);
-        center.isIntersection = true;
-        // 내부 경로 연결
-        linkPath(new int[]{20,21,28}); linkPath(new int[]{22,23,28});
-        // 중심에서 외곽으로 두 갈래
-        linkPath(new int[]{28,24,25,15}); linkPath(new int[]{26,27,0});
-        // shortcut 설정
-        int[][] sc = {{5,20},{10,22},{15,25},{0,27},{28,26}};
-        for (int[] s : sc) {
-            BoardNode c = find(s[0]);
-            c.isIntersection = true;
-            c.shortcut = find(s[1]);
+
+        // 1) 내부 노드 생성 및 배열 저장
+        int[] innerIds = {20,21,22,23,24,25,26,27,28};
+        BoardNode[] innerNodes = new BoardNode[innerIds.length];
+        for (int i = 0; i < innerIds.length; i++) {
+            innerNodes[i] = new BoardNode(innerIds[i], String.valueOf(innerIds[i]));
+            nodes.add(innerNodes[i]);
         }
+        // 2) 중심 교차점 설정
+        BoardNode center = innerNodes[8];  // id == 28
+        // 3) 내부 경로 연결
+        linkPath(innerNodes[0], innerNodes[1], innerNodes[8]); // 20 → 21 → 28
+        linkPath(innerNodes[2], innerNodes[3], innerNodes[8]); // 22 → 23 → 28
+        // 4) 중심에서 외곽으로 두 갈래
+        linkPath(innerNodes[8], innerNodes[4], innerNodes[5], outer[15]); // 28 → 24 → 25 → 15
+        linkPath(innerNodes[6], innerNodes[7], outer[0]); // 26 → 27 → 0
+
+        // 5) shortcut 설정 (직접 참조 사용)
+        outer[5].isIntersection   = true;
+        outer[5].shortcut         = innerNodes[0];  // 5 → 20
+
+        outer[10].isIntersection  = true;
+        outer[10].shortcut        = innerNodes[2];  // 10 → 22
+
+        center.isIntersection     = true;           // (center == innerNodes[8], id=28)
+        center.shortcut           = innerNodes[6];  // 28 → 26
+
     }
-    private void linkPath(int[] p) {
-        for (int i = 0; i < p.length-1; i++) {
-            BoardNode a = find(p[i]), b = find(p[i+1]);
-            a.next = b; b.prev = a;
-        }
+    @Override protected void buildBoard() {
+        super.buildBoard();
     }
-    private BoardNode find(int id) {
-        return nodes.stream().filter(n->n.id==id).findFirst().orElse(null);
-    }
-    @Override protected void buildBoard() {}
 }
 
 //────────────────────────────────────────────────────────────
@@ -184,49 +227,92 @@ class SquareBoard extends PolygonBoard {
 class PentagonBoard extends PolygonBoard {
     public PentagonBoard() {
         super(5,5);
-        int[] inner = {25,26,27,28,29,30,31,32,33,34,35};
-        for (int id : inner) nodes.add(new BoardNode(id, String.valueOf(id)));
-        BoardNode center = find(35);
+
+        // 1) 내부 노드 생성 및 배열 저장
+        int[] innerIds = {25,26,27,28,29,30,31,32,33,34,35};
+        BoardNode[] innerNodes = new BoardNode[innerIds.length];
+        for (int i = 0; i < innerIds.length; i++) {
+            innerNodes[i] = new BoardNode(innerIds[i], String.valueOf(innerIds[i]));
+            nodes.add(innerNodes[i]);
+        }
+        // 2) 중심 교차점 설정
+        BoardNode center = innerNodes[10];  // id == 28
         center.isIntersection = true;
-        linkPath(new int[]{25,26,35}); linkPath(new int[]{27,28,35});
-        linkPath(new int[]{29,30,35}); linkPath(new int[]{31,32,20});
-        linkPath(new int[]{33,34,0});
-        center.next = find(0); find(0).prev = center;
-        int[][] sc = {{5,25},{10,27},{15,29},{32,20},{34,0}};
+        // 3) 내부 경로 연결
+        linkPath(innerNodes[0], innerNodes[1], innerNodes[10]); // 25 → 26 → 35
+        linkPath(innerNodes[2], innerNodes[3], innerNodes[10]); // 27 → 28 → 35
+        linkPath(innerNodes[4], innerNodes[5], innerNodes[10]); // 29 → 30 → 35
+        // 4) 중심에서 외곽으로 두 갈래
+        linkPath(innerNodes[10], innerNodes[6], innerNodes[7], outer[20]); // 35 → 31 → 32 → 20
+        linkPath(innerNodes[8], innerNodes[9], outer[0]); // 35 → 33 → 34 → 0
+        // 5) shortcut 설정 (직접 참조 사용)
+        int[][] sc = {{5,25},{10,27},{15,29}};
         for (int[] s : sc) {
             BoardNode c = find(s[0]);
             c.isIntersection = true;
             c.shortcut = find(s[1]);
         }
+        center.isIntersection     = true;           // (center == innerNodes[10], id=35)
+        center.shortcut           = innerNodes[8];  // 35 → 33
+
     }
-    private void linkPath(int[] p) { for (int i=0;i<p.length-1;i++){BoardNode a=find(p[i]),b=find(p[i+1]);a.next=b;b.prev=a;} }
-    private BoardNode find(int id) {return nodes.stream().filter(n->n.id==id).findFirst().orElse(null);}    
+    private BoardNode find(int id) {return nodes.stream().filter(n->n.id==id).findFirst().orElse(null);}
     @Override protected void buildBoard() {}
     @Override public void printBoard() {}
 }
 
 //────────────────────────────────────────────────────────────
-// HexagonBoard 클래스
+//HexagonBoard 클래스
 class HexagonBoard extends PolygonBoard {
-    public HexagonBoard() {
-        super(6,5);
-        int[] inner = {30,31,32,33,34,35,36,37,38,39,40,41,42};
-        for (int id : inner) nodes.add(new BoardNode(id,String.valueOf(id)));
-        BoardNode center = find(42);
-        center.isIntersection = true;
-        linkPath(new int[]{30,31,42}); linkPath(new int[]{32,33,42});
-        linkPath(new int[]{34,35,42}); linkPath(new int[]{36,37,42});
-        linkPath(new int[]{38,39,25}); linkPath(new int[]{40,41,0});
-        center.next = find(0); find(0).prev = center;
-        int[][] sc = {{5,30},{10,32},{15,34},{20,36},{39,25},{41,0}};
-        for (int[] s : sc) {
-            BoardNode c = find(s[0]);
-            c.isIntersection = true;
-            c.shortcut = find(s[1]);
-        }
-    }
-    private void linkPath(int[] p) { for (int i=0;i<p.length-1;i++){BoardNode a=find(p[i]),b=find(p[i+1]);a.next=b;b.prev=a;} }
-    private BoardNode find(int id) {return nodes.stream().filter(n->n.id==id).findFirst().orElse(null);}    
-    @Override protected void buildBoard() {}
-    @Override public void printBoard() {}
+ public HexagonBoard() {
+     super(6,5);
+
+     // (1) 내부 노드 생성
+     int[] innerIds = {30,31,32,33,34,35,36,37,38,39,40,41,42};
+     BoardNode[] inner = new BoardNode[innerIds.length];
+     for (int i = 0; i < innerIds.length; i++) {
+         inner[i] = new BoardNode(innerIds[i], String.valueOf(innerIds[i]));
+         nodes.add(inner[i]);
+     }
+
+     // (2) 중앙 교차점 설정
+     BoardNode center = inner[12];  // id == 42
+     center.isIntersection = true;
+
+     // (3) 내부 경로 연결
+     linkPath(inner[0],  inner[1],  center);        // 30 → 31 → 42
+     linkPath(inner[2],  inner[3],  center);        // 32 → 33 → 42
+     linkPath(inner[4],  inner[5],  center);        // 34 → 35 → 42
+     linkPath(inner[6],  inner[7],  center);        // 36 → 37 → 42
+     linkPath(inner[8],  inner[9],  outer[25]);     // 38 → 39 → 외곽 25
+     linkPath(inner[10], inner[11], outer[0]);      // 40 → 41 → 외곽 0
+
+     // (4) 중앙에서 나가는 길
+     center.next     = inner[8];   // 멈추지 않을 경우 38→…
+     inner[8].prev   = center;
+     center.shortcut = inner[10];  // 정확히 42에서 멈춘 후 40→…
+     inner[10].prev  = center;
+
+     // (5) 외곽 교차점 숏컷 설정 (ID 매핑 방식)
+     //    배열 형식을 {외곽ID, 내부ID}로 두고, find()로 BoardNode를 가져옵니다.
+     int[][] sc = {
+         { 5, 30 },   // 외곽 5 → 내부 30
+         {10, 32 },   // 외곽 10 → 내부 32
+         {15, 34 },   // 외곽 15 → 내부 34
+         {20, 36 }    // 외곽 20 → 내부 36
+     };
+     for (int[] pair : sc) {
+         BoardNode outerNode = find(pair[0]);   // ex. ID=5 노드
+         BoardNode target    = find(pair[1]);   // ex. ID=30 노드
+         outerNode.isIntersection = true;
+         outerNode.shortcut       = target;
+     }
+ }
+
+ private BoardNode find(int id) {
+     return nodes.stream()
+                 .filter(n -> n.id == id)
+                 .findFirst()
+                 .orElse(null);
+ }
 }
