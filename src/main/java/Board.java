@@ -186,6 +186,7 @@ class PolygonBoard extends Board {
 
 //────────────────────────────────────────────────────────────
 // SquareBoard 클래스: 사각형 윷놀이 보드
+//────────────────────────────────────────────────────────────
 class SquareBoard extends PolygonBoard {
     public SquareBoard() {
         super(4, 5); // 4변 × 5칸 = 20칸 외곽
@@ -224,6 +225,7 @@ class SquareBoard extends PolygonBoard {
 
 //────────────────────────────────────────────────────────────
 // PentagonBoard 클래스
+//────────────────────────────────────────────────────────────
 class PentagonBoard extends PolygonBoard {
     public PentagonBoard() {
         super(5,5);
@@ -263,6 +265,7 @@ class PentagonBoard extends PolygonBoard {
 
 //────────────────────────────────────────────────────────────
 //HexagonBoard 클래스
+//────────────────────────────────────────────────────────────
 class HexagonBoard extends PolygonBoard {
  public HexagonBoard() {
      super(6,5);
