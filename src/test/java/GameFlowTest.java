@@ -1,6 +1,8 @@
 import org.junit.jupiter.api.*;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.Scanner;
+import model.*;
+import controller.*;
 
 /*
 게임 전체 flow 시나리오 에 대한 통합 테스트로 사용할 class 입니다!
