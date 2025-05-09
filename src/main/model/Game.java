@@ -1,9 +1,11 @@
+package model;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 
-class Game {
+public class Game {
     List<Player> players;
     Board board;
     int currentTurn = 0; // 플레이어 인덱스
@@ -23,6 +25,7 @@ class Game {
             Player player = players.get(currentTurn);
             System.out.println("\n--- " + player.getName() + "의 턴 ---");
             board.printBoard();
+
             System.out.println("윷 던지기 방식 선택 (1: 지정, 2: 랜덤): ");
             int mode = scanner.nextInt();
             List<YutResult> results = new ArrayList<>();
@@ -154,5 +157,60 @@ class Game {
             }
             return chosen;
         }
+    }
+
+
+    public Player getCurrentPlayer() {
+        return players.get(currentTurn);
+    }
+
+    public List<Player> getPlayers() {
+        return players;
+    }
+
+    public Board getBoard() {
+        return board;
+    }
+
+    public int getCurrentTurn() {
+        return currentTurn;
+    }
+
+    public void nextTurn() {
+        currentTurn = (currentTurn + 1) % players.size();
+    }
+
+    public List<YutResult> throwYutSequence(boolean isRandom) {
+        List<YutResult> results = new ArrayList<>();
+        boolean extra;
+        do {
+            YutResult res = YutResult.throwYut(random);
+            results.add(res);
+            extra = res.grantsExtraThrow();
+        } while (extra);
+        return results;
+    }
+
+    public boolean applyYutResult(YutResult result, Piece piece) {
+        if (piece == null || piece.isFinished()) return false;
+
+        // 🔧 상태 보정: 출발 전인 경우
+        if (piece.getPosition() == null) {
+            piece.setHasLeftStart(false);
+        }
+
+        // 🔧 상태 보정: 교차점에 멈춘 경우
+        if (piece.getPosition() != null && piece.getPosition().isIntersection() && piece.getPosition().getShortcut() != null) {
+            piece.setJustStoppedAtIntersection(true);
+        } else {
+            piece.setJustStoppedAtIntersection(false);
+        }
+
+        boolean captured = board.movePiece(piece, result.getStepCount(), null);
+        return captured || result.grantsExtraThrow();
+    }
+
+    public boolean isCurrentPlayerWin() {
+        return getCurrentPlayer().allPiecesFinished();
     }
 }

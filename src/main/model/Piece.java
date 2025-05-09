@@ -1,6 +1,8 @@
+package model;
+
 import java.util.Stack;
 
-class Piece {
+public class Piece {
     Player owner;
     BoardNode position; //말이 위치한 보드노드
     BoardNode lastPosition;         // ← 이전 위치 저장용
@@ -18,8 +20,31 @@ class Piece {
 
     @Override
     public String toString() {
-        String info = "말 위치 : " + (position != null ? position.name : "집");
+        String info = "말@" + (position != null ? position.name : "집");
         if (finished) info += "(완주)";
         return info;
     }
+
+    // Piece.java
+    public Player getOwner() {
+        return owner;
+    }
+
+    public boolean isFinished() {
+        return finished;
+    }
+
+    public void setHasLeftStart(boolean val) {
+        this.hasLeftStart = val;
+    }
+
+    public void setJustStoppedAtIntersection(boolean val) {
+        this.justStoppedAtIntersection = val;
+    }
+
+    public BoardNode getPosition() {
+        return position;
+    }
+
+
 }

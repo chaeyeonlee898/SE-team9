@@ -1,4 +1,11 @@
+package controller;
+
 import java.util.Scanner;
+import model.Board;
+import model.Game;
+import model.SquareBoard;
+import model.PentagonBoard;
+import model.HexagonBoard;
 
 public class YutnoriGame {
     public static void main(String[] args) {
