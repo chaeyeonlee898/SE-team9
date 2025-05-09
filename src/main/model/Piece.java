@@ -1,8 +1,11 @@
+package model;
+
 import java.util.Stack;
 
-class Piece {
+public class Piece {
     Player owner;
     BoardNode position; //말이 위치한 보드노드
+    BoardNode lastPosition;
     boolean finished;
     boolean hasLeftStart = false;           // 한 바퀴 나감 플래그
     Stack<BoardNode> moveHistory = new Stack<>(); // 이동 이력
@@ -21,4 +24,27 @@ class Piece {
         if (finished) info += "(완주)";
         return info;
     }
+
+    // Piece.java
+    public Player getOwner() {
+        return owner;
+    }
+
+    public boolean isFinished() {
+        return finished;
+    }
+
+    public void setHasLeftStart(boolean val) {
+        this.hasLeftStart = val;
+    }
+
+    public void setJustStoppedAtIntersection(boolean val) {
+        this.justStoppedAtIntersection = val;
+    }
+
+    public BoardNode getPosition() {
+        return position;
+    }
+
+
 }

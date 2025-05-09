@@ -1,12 +1,14 @@
+package model;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 
-class Game {
+public class Game {
     List<Player> players;
     Board board;
-    int currentTurn = 0; // 플레이어 인덱스
+    int currentTurn = 0;
     Random random = new Random();
 
     public Game(int numPlayers, int piecesPerPlayer, Board board) {
@@ -38,12 +40,24 @@ class Game {
                     int choice = scanner.nextInt();
                     YutResult res;
                     switch (choice) {
-                        case 1: res = YutResult.BACKDO; break;
-                        case 2: res = YutResult.DO; break;
-                        case 3: res = YutResult.GAE; break;
-                        case 4: res = YutResult.GEOL; break;
-                        case 5: res = YutResult.YUT; break;
-                        case 6: res = YutResult.MO; break;
+                        case 1:
+                            res = YutResult.BACKDO;
+                            break;
+                        case 2:
+                            res = YutResult.DO;
+                            break;
+                        case 3:
+                            res = YutResult.GAE;
+                            break;
+                        case 4:
+                            res = YutResult.GEOL;
+                            break;
+                        case 5:
+                            res = YutResult.YUT;
+                            break;
+                        case 6:
+                            res = YutResult.MO;
+                            break;
                         default:
                             System.out.println("잘못된 선택");
                             continue;
@@ -130,12 +144,24 @@ class Game {
                             System.out.println("추가 윷 던지기 기회! 번호 선택: 1. 빽도  2. 도  3. 개  4. 걸  5. 윷  6. 모");
                             int choice = scanner.nextInt();
                             switch (choice) {
-                                case 1: extraRes = YutResult.BACKDO; break;
-                                case 2: extraRes = YutResult.DO; break;
-                                case 3: extraRes = YutResult.GAE; break;
-                                case 4: extraRes = YutResult.GEOL; break;
-                                case 5: extraRes = YutResult.YUT; break;
-                                case 6: extraRes = YutResult.MO; break;
+                                case 1:
+                                    extraRes = YutResult.BACKDO;
+                                    break;
+                                case 2:
+                                    extraRes = YutResult.DO;
+                                    break;
+                                case 3:
+                                    extraRes = YutResult.GAE;
+                                    break;
+                                case 4:
+                                    extraRes = YutResult.GEOL;
+                                    break;
+                                case 5:
+                                    extraRes = YutResult.YUT;
+                                    break;
+                                case 6:
+                                    extraRes = YutResult.MO;
+                                    break;
                                 default:
                                     System.out.println("잘못된 선택, 랜덤으로 처리합니다.");
                                     extraRes = YutResult.throwYut(random);
@@ -162,5 +188,60 @@ class Game {
             currentTurn = (currentTurn + 1) % players.size();
         }
         System.out.println("게임 종료");
+    }
+
+
+    public Player getCurrentPlayer() {
+        return players.get(currentTurn);
+    }
+
+    public List<Player> getPlayers() {
+        return players;
+    }
+
+    public Board getBoard() {
+        return board;
+    }
+
+    public int getCurrentTurn() {
+        return currentTurn;
+    }
+
+    public void nextTurn() {
+        currentTurn = (currentTurn + 1) % players.size();
+    }
+
+    public List<YutResult> throwYutSequence(boolean isRandom) {
+        List<YutResult> results = new ArrayList<>();
+        boolean extra;
+        do {
+            YutResult res = YutResult.throwYut(random);
+            results.add(res);
+            extra = res.grantsExtraThrow();
+        } while (extra);
+        return results;
+    }
+
+    public boolean applyYutResult(YutResult result, Piece piece) {
+        if (piece == null || piece.isFinished()) return false;
+
+        // 🔧 상태 보정: 출발 전인 경우
+        if (piece.getPosition() == null) {
+            piece.setHasLeftStart(false);
+        }
+
+        // 🔧 상태 보정: 교차점에 멈춘 경우
+        if (piece.getPosition() != null && piece.getPosition().isIntersection() && piece.getPosition().getShortcut() != null) {
+            piece.setJustStoppedAtIntersection(true);
+        } else {
+            piece.setJustStoppedAtIntersection(false);
+        }
+
+        boolean captured = board.movePiece(piece, result.getStepCount(), null);
+        return captured || result.grantsExtraThrow();
+    }
+
+    public boolean isCurrentPlayerWin() {
+        return getCurrentPlayer().allPiecesFinished();
     }
 }
