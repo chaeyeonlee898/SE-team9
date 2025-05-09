@@ -111,6 +111,7 @@ public class GameController {
         game.nextTurn();
         updateTurnLabel();
         updateStatusLabel();
+        log("\n");
     }
 
     private YutResult promptManualYutResult() {
