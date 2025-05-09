@@ -8,150 +8,175 @@ import java.util.Scanner;
 abstract class Board {
     protected BoardNode start;                // 출발(완주) 지점 노드
     protected final List<BoardNode> nodes = new ArrayList<>();  // 모든 노드
+    private static final int BACKDO = -1;
     public Board() { buildBoard(); }
     protected abstract void buildBoard();
     public BoardNode getStart() { return start; }
+    private boolean isFirstEntry(Piece piece){ return piece.position == null;}
+    private BoardNode getSourceNode(Piece piece, boolean first){ return first? getStart(): piece.position;}
 
-    /**
-     * 한 칸 이동: 마지막 스텝에만 shortcut 적용. 10번 노드에서는 첫 스텝에도 shortcut.
-     */
-    public BoardNode getNextNode(BoardNode current, int steps) {
-        BoardNode temp = current;
-        for (int i = 0; i < steps; i++) {
-            if (temp == null) break;
-            if (i == 0 && temp.id == 10 && temp.shortcut != null) {
-                temp = temp.shortcut;
-            } else {
-                boolean last = (i == steps - 1);
-                if (last && temp != start && temp.isIntersection && temp.shortcut != null) temp = temp.shortcut;
-                else temp = temp.next;
-            }
-            if (temp == start && i < steps - 1) return start;
-        }
-        return temp;
-    }
-
-    /**
-     * 말 이동: 5번,10번,28번에 대한 특별 숏컷, 지연 숏컷, 빽도, 업, 캡처 처리
-     */
     public boolean movePiece(Piece piece, int steps, Scanner scanner) {
-
         // 1. 첫 entry 및 업 플래그
-        boolean first = (piece.position==null); //처음 입장하는 경우
-        BoardNode src = first? getStart(): piece.position; //현재 보드노드(추적)
+        boolean first = isFirstEntry(piece); //처음 입장하는 경우 플래그
         if (first) piece.hasLeftStart=true;
+        BoardNode src = getSourceNode(piece, first); //현재 보드노드(추적)
+
         System.out.println("[DEBUG] " + piece.owner.getName() + " 호출 movePiece(steps=" + steps + ")");
-        boolean delayed = piece.justStoppedAtIntersection;
-
-
         debugPrintAllNodes();
 
-        // 기본: outer 따라서
-        // curr 노드가 intersection이면 shortcut으로(마지막 intersection 제외)
-        // 0) 빽도 처리: steps == -1
-        if (steps == -1) {
-            // 0-a) 아직 보드에 안 올랐으면 불가
+        // 2. 빽도 처리
+        if (steps == BACKDO) return handleBackdo(piece);
+
+        // 3. “start에서 positive step” 완주 처리
+        if (isFinishedPath(first, src, piece, steps)) {
+            finishPieces(piece);
+            return false;
+        }
+
+        // 4. 경로 설정
+        List<BoardNode> path = calculatePath(src, steps);
+        BoardNode dest = path.getLast();
+        piece.justStoppedAtIntersection = dest.isIntersection && dest.shortcut!=null;
+
+        // 5. 업(스택) 기능
+        List<Piece> stack = collectStack(first, piece, src);
+
+
+        // 6. 완주 처리: start를 한 칸 이상 지나쳐야 완주로 간주
+        if (isFinishedPath(first, path)) {
+            finishPieces(stack);
+            return false;
+        }
+
+        // 7. 이동 및 이력
+        recordAndMove(stack, src, path, dest);
+
+        // 8. 캡처
+        boolean captureOccured = handleCapture(piece, dest);
+
+        System.out.println(piece.owner.getName()+"의 말("+stack.size()+"개)이 "+dest+"로 이동했습니다.");
+        return captureOccured;
+    }
+
+    private boolean handleBackdo(Piece piece){
+        
+            // a) 아직 보드에 안 올랐으면 불가
             if (piece.position == null) {
                 System.out.println("아직 보드에 진입하지 않아 빽도 불가.");
                 return false;
             }
             System.out.println("[DEBUG] 이전 위치 : " + piece.lastPosition);
 
-            if (piece.position == getStart()
-                    && piece.hasLeftStart
-                    && piece.moveHistory.size() == 1) {
-                System.out.println("start 지점에서 빽도! → 이전 위치로 돌아갑니다.");
-
-                // 1) lastPosition 으로 돌아가기
-                BoardNode prev = piece.lastPosition;
-
-                // 2) 보드 상 위치 갱신
-                getStart().pieces.remove(piece);
-                prev.pieces.add(piece);
-                piece.position = prev;
-                piece.justStoppedAtIntersection = prev.isIntersection && prev.shortcut != null;
-
-                // 3) moveHistory 재설정: [start, prev]
-                piece.moveHistory.clear();
-                piece.moveHistory.push(getStart());
-                piece.moveHistory.push(prev);
-
-                return false;
+            // b) 게임 시작부터 빽도
+            if (piece.position == getStart() && piece.hasLeftStart && piece.moveHistory.size() == 1) {
+                return backdoFromStart(piece);
             }
 
-            // 0-c) 이동 이력 없으면 불가
+            // c) 이동 이력 없으면 백도 불가
             if (piece.moveHistory.isEmpty()) {
                 System.out.println("이전 위치 정보가 없어 빽도 불가.");
                 return false;
             }
 
-            // 0-d) 정상적인 한 칸 뒤로 이동
+            // d) 정상적인 한 칸 뒤로 이동
             if (piece.moveHistory.size() > 1) {
                 piece.moveHistory.pop();
             }
             BoardNode prev = piece.moveHistory.peek();
             piece.position.pieces.remove(piece);
 
-            boolean captured = false;
-            for (Piece enemy : new ArrayList<>(prev.pieces)) {
-                if (enemy.owner != piece.owner) {
-                    captured = true;
-                    prev.pieces.remove(enemy);
-                    enemy.position = null;
-                    System.out.println(enemy.owner.getName()
-                            + "의 말이 빽도로 캡처되어 집으로 돌아갑니다.");
-                }
-            }
+            // 캡쳐 처리
+            boolean captureByBackdo = handleCapture(piece, prev);
 
-            // 1) 일반 이동에 들어가기 직전, lastPosition 에 현재 위치 저장
-            piece.lastPosition = piece.position == null
-                    ? getStart()  // 첫 진입인 경우 start 가 이전 위치
-                    : piece.position;
-
+            // 일반 이동에 들어가기 직전, lastPosition 에 현재 위치 저장
+            // 첫 진입인 경우 start 가 이전 위치
+            piece.lastPosition = piece.position == null ? getStart() : piece.position;
             prev.pieces.add(piece);
             piece.position = prev;
             // 빽도 후에도 intersection 여부 유지
             piece.justStoppedAtIntersection = prev.isIntersection && prev.shortcut != null;
-            System.out.println(piece.owner.getName()
-                    + "의 말이 빽도로 " + prev + "로 한 칸 뒤로 이동했습니다.");
-            return captured;
 
+            System.out.println(piece.owner.getName() + "의 말이 빽도로 " + prev + "로 한 칸 뒤로 이동했습니다.");
+            return captureByBackdo;
+    }
 
+    private boolean backdoFromStart(Piece piece){
+        // 1) lastPosition 으로 돌아가기
+        BoardNode prev = piece.lastPosition;
+
+        // 2) 보드 상 위치 갱신
+        getStart().pieces.remove(piece);
+        prev.pieces.add(piece);
+        piece.position = prev;
+        piece.justStoppedAtIntersection = prev.isIntersection && prev.shortcut != null;
+
+        // 3) moveHistory 재설정: [start, prev]
+        piece.moveHistory.clear();
+        piece.moveHistory.push(getStart());
+        piece.moveHistory.push(prev);
+
+        System.out.println("start 지점에서 빽도! → 이전 위치로 돌아갑니다.");
+        return false;
+    }
+
+    private boolean isFinishedPath(boolean first, BoardNode src, Piece piece, int steps){
+        return !first && src == getStart() && piece.hasLeftStart && steps > 0;
+    }
+
+    private boolean isFinishedPath(boolean first, List<BoardNode> path){
+        return !first && path.stream().limit(path.size() - 1).anyMatch(n -> n == start);
+    }
+
+    private void finishPieces(List<Piece> stack){
+        for (Piece p : stack) {
+            p.finished = true;
+            System.out.println(p.owner.getName() + "의 말이 완주했습니다!");
         }
+    }
 
-        // 1) 일반 이동에 들어가기 직전, lastPosition 에 현재 위치 저장
-        piece.lastPosition = piece.position == null
-                ? getStart()  // 첫 진입인 경우 start 가 이전 위치
-                : piece.position;
+    private void finishPieces(Piece piece) {
+        List<Piece> singleton = new ArrayList<>();
+        singleton.add(piece);
+        finishPieces(singleton);
+    }
 
-        // 2) “start에서 positive step” 완주 처리
-        //    — 이미 보드에 올라갔었고(start를 한번 떠난 적이 있고),
-        //      지금 위치가 start이며, steps>0 이면 즉시 완주
-        if (!first && src == getStart() && piece.hasLeftStart && steps > 0) {
-            piece.finished = true;
-            System.out.println(piece.owner.getName() + "의 말이 완주했습니다! (start에서 positive step)");
-            return false;
+
+    private boolean handleCapture(Piece piece, BoardNode curr){
+        boolean captured = false;
+        for (Piece enemy : new ArrayList<>(curr.pieces)) {
+            if (enemy.owner != piece.owner) {
+                captured = true;
+                curr.pieces.remove(enemy);
+                enemy.position = null;
+                System.out.println(enemy.owner.getName()+"의 말이 캡처되어 집으로 돌아갑니다.");
+            }
         }
+        return captured;
+    }
 
-        //2. 경로 설정
+    private List<BoardNode> calculatePath(BoardNode src, int steps){
         BoardNode cur = src;
         List<BoardNode> path = new ArrayList<>();
         // 마지막 꼭지점(15, 20, 25) 제외한 모든 outer 교차점에서 중앙길
         boolean cornerSquare = this instanceof SquareBoard && src.isIntersection && src.id!=15;
         boolean cornerPent = this instanceof PentagonBoard && src.isIntersection && src.id!=20;
         boolean cornerHex = this instanceof HexagonBoard && src.isIntersection && src.id!=25;
-
+        // 교차점 처리 플래그 - 기본 & 사각형판 예외
         boolean stopatIntersection = false;
         boolean squareboardException = false;
+
+        // 1) 교차점 여부에 따라 한 칸 이동
         if((cornerSquare || cornerPent || cornerHex) && cur.shortcut != null)
-            cur = cur.shortcut;
+            cur = cur.shortcut;  // 교차점(마지막 제외)이면 shortcut
         else
-            cur = cur.next;
+            cur = cur.next;  // 아니면 다음 노드로
         path.add(cur);
+
+        // 2) 사각형 판 예외 처리
         BoardNode temp = cur;
         for (int i = 0; i < steps-1; i++) {
-            if(temp.id ==23 && temp.next.id == 28){
-                squareboardException = true;
+            if(temp.id ==23 && temp.next.id == 28){  // 사각형 판에서 23 -> 28로 가는 경우
+                squareboardException = true;         // 숏컷(26 방향)으로 가도록 플래그 설정
                 System.out.println("SquareBoardException");
             }
             if(squareboardException && temp.id == 28)
@@ -160,49 +185,35 @@ abstract class Board {
                 temp = temp.next;
             System.out.println("temp: "+temp.id);
         }
-        if(temp.isIntersection || squareboardException){
+        if(temp.isIntersection || squareboardException){  // 숏컷 적용하는 경우(교차점 or 사각형판 예외)
             stopatIntersection = true;
         }
 
-        for(int i=1;i<steps;i++){
-            if(i==steps-1 && cur.shortcut!=null && stopatIntersection){
+        // 3) 나머지 경로 이동
+        for(int i=1; i<steps ;i++){
+            if(i==steps-1 && cur.shortcut!=null && stopatIntersection){ // 숏컷 이동
                 cur = cur.shortcut;
                 stopatIntersection = false;
             }
-            else
+            else  // 기존 경로 이동
                 cur = cur.next;
             path.add(cur);
         }
-        BoardNode dest=cur;
-        piece.justStoppedAtIntersection = dest.isIntersection && dest.shortcut!=null;
-        if (src.id==5 && !delayed) {
-            BoardNode fb=src; for(int i=0;i<steps;i++) fb=fb.next; dest=fb;
-        }
 
-        // 3) 업(스택) 기능
-        List<Piece> stack=new ArrayList<>();
+        return path;
+    }
+
+    private List<Piece> collectStack(boolean first, Piece piece, BoardNode src){
+        List<Piece> stack = new ArrayList<>();
         if (first) stack.add(piece);
         else {
             for(Piece p:new ArrayList<>(src.pieces)) if(p.owner==piece.owner) stack.add(p);
             src.pieces.removeAll(stack);
         }
+        return stack;
+    }
 
-        // 4) 완주 처리: start를 한 칸 이상 지나쳐야 완주로 간주
-        if (!first && path.stream().limit(path.size() - 1).anyMatch(n -> n == start)) {
-            for (Piece p : stack) {
-                p.finished = true;
-                System.out.println(p.owner.getName() + "의 말이 완주했습니다!");
-            }
-            return false;
-        }
-
-
-        // 5. 캡처
-        boolean capO=false;
-        for(Piece e:new ArrayList<>(dest.pieces)) if(e.owner!=piece.owner){capO=true; dest.pieces.remove(e); e.position=null;
-            System.out.println(e.owner.getName()+"의 말이 캡처되어 집으로 돌아갑니다.");}
-
-        // 6. 이동 및 이력
+    private void recordAndMove(List<Piece> stack, BoardNode src, List<BoardNode> path, BoardNode dest){
         for(Piece p:stack){
             p.moveHistory.push(src);
             for(BoardNode n:path)
@@ -210,10 +221,7 @@ abstract class Board {
             dest.pieces.add(p);
             p.position=dest;
         }
-        System.out.println(piece.owner.getName()+"의 말("+stack.size()+"개)이 "+dest+"로 이동했습니다.");
-        return capO;
     }
-
     public void debugPrintAllNodes(){ System.out.print("[DEBUG BOARD] "); for(BoardNode n:nodes) System.out.print(n.id+"["+n.pieces.size()+"] "); System.out.println(); }
     public abstract void printBoard();
 }
@@ -251,6 +259,23 @@ class PolygonBoard extends Board {
             next.prev = curr;
         }
     }
+    protected BoardNode[] createInnerNodes(int[] innerIds){
+        BoardNode[] innerNodes = new BoardNode[innerIds.length];
+        for (int i = 0; i < innerIds.length; i++) {
+            innerNodes[i] = new BoardNode(innerIds[i], String.valueOf(innerIds[i]));
+            nodes.add(innerNodes[i]);
+        }
+        return innerNodes;
+    }
+    protected void setShortcuts(int[][] sc){
+        for (int[] pair : sc) {
+            BoardNode outerNode = find(pair[0]);   // ex. ID=5 노드
+            BoardNode target    = find(pair[1]);   // ex. ID=30 노드
+            outerNode.isIntersection = true;
+            outerNode.shortcut       = target;
+        }
+    }
+    protected BoardNode find(int id) {return nodes.stream().filter(n->n.id==id).findFirst().orElse(null);}
     @Override protected void buildBoard() {}
     @Override public void printBoard() {}
 }
@@ -264,11 +289,7 @@ class SquareBoard extends PolygonBoard {
 
         // 1) 내부 노드 생성 및 배열 저장
         int[] innerIds = {20,21,22,23,24,25,26,27,28};
-        BoardNode[] innerNodes = new BoardNode[innerIds.length];
-        for (int i = 0; i < innerIds.length; i++) {
-            innerNodes[i] = new BoardNode(innerIds[i], String.valueOf(innerIds[i]));
-            nodes.add(innerNodes[i]);
-        }
+        BoardNode[] innerNodes = createInnerNodes(innerIds);
         // 2) 중심 교차점 설정
         BoardNode center = innerNodes[8];  // id == 28
         // 3) 내부 경로 연결
@@ -279,12 +300,8 @@ class SquareBoard extends PolygonBoard {
         linkPath(innerNodes[6], innerNodes[7], outer[0]); // 26 → 27 → 0
 
         // 5) shortcut 설정 (직접 참조 사용)
-        outer[5].isIntersection   = true;
-        outer[5].shortcut         = innerNodes[0];  // 5 → 20
-
-        outer[10].isIntersection  = true;
-        outer[10].shortcut        = innerNodes[2];  // 10 → 22
-
+        int[][] sc = {{5,20},{10,22}};
+        setShortcuts(sc);
         center.isIntersection     = true;           // (center == innerNodes[8], id=28)
         center.shortcut           = innerNodes[6];  // 28 → 26
 
@@ -303,11 +320,7 @@ class PentagonBoard extends PolygonBoard {
 
         // 1) 내부 노드 생성 및 배열 저장
         int[] innerIds = {25,26,27,28,29,30,31,32,33,34,35};
-        BoardNode[] innerNodes = new BoardNode[innerIds.length];
-        for (int i = 0; i < innerIds.length; i++) {
-            innerNodes[i] = new BoardNode(innerIds[i], String.valueOf(innerIds[i]));
-            nodes.add(innerNodes[i]);
-        }
+        BoardNode[] innerNodes = createInnerNodes(innerIds);
         // 2) 중심 교차점 설정
         BoardNode center = innerNodes[10];  // id == 28
         center.isIntersection = true;
@@ -320,16 +333,12 @@ class PentagonBoard extends PolygonBoard {
         linkPath(innerNodes[8], innerNodes[9], outer[0]); // 35 → 33 → 34 → 0
         // 5) shortcut 설정 (직접 참조 사용)
         int[][] sc = {{5,25},{10,27},{15,29}};
-        for (int[] s : sc) {
-            BoardNode c = find(s[0]);
-            c.isIntersection = true;
-            c.shortcut = find(s[1]);
-        }
+        setShortcuts(sc);
         center.isIntersection     = true;           // (center == innerNodes[10], id=35)
         center.shortcut           = innerNodes[8];  // 35 → 33
 
     }
-    private BoardNode find(int id) {return nodes.stream().filter(n->n.id==id).findFirst().orElse(null);}
+
     @Override protected void buildBoard() {}
     @Override public void printBoard() {}
 }
@@ -343,50 +352,28 @@ class HexagonBoard extends PolygonBoard {
 
      // (1) 내부 노드 생성
      int[] innerIds = {30,31,32,33,34,35,36,37,38,39,40,41,42};
-     BoardNode[] inner = new BoardNode[innerIds.length];
-     for (int i = 0; i < innerIds.length; i++) {
-         inner[i] = new BoardNode(innerIds[i], String.valueOf(innerIds[i]));
-         nodes.add(inner[i]);
-     }
-
+     BoardNode[] innerNodes = createInnerNodes(innerIds);
      // (2) 중앙 교차점 설정
-     BoardNode center = inner[12];  // id == 42
+     BoardNode center = innerNodes[12];  // id == 42
      center.isIntersection = true;
 
      // (3) 내부 경로 연결
-     linkPath(inner[0],  inner[1],  center);        // 30 → 31 → 42
-     linkPath(inner[2],  inner[3],  center);        // 32 → 33 → 42
-     linkPath(inner[4],  inner[5],  center);        // 34 → 35 → 42
-     linkPath(inner[6],  inner[7],  center);        // 36 → 37 → 42
-     linkPath(inner[8],  inner[9],  outer[25]);     // 38 → 39 → 외곽 25
-     linkPath(inner[10], inner[11], outer[0]);      // 40 → 41 → 외곽 0
+     linkPath(innerNodes[0],  innerNodes[1],  center);        // 30 → 31 → 42
+     linkPath(innerNodes[2],  innerNodes[3],  center);        // 32 → 33 → 42
+     linkPath(innerNodes[4],  innerNodes[5],  center);        // 34 → 35 → 42
+     linkPath(innerNodes[6],  innerNodes[7],  center);        // 36 → 37 → 42
+     linkPath(innerNodes[8],  innerNodes[9],  outer[25]);     // 38 → 39 → 외곽 25
+     linkPath(innerNodes[10], innerNodes[11], outer[0]);      // 40 → 41 → 외곽 0
 
      // (4) 중앙에서 나가는 길
-     center.next     = inner[8];   // 멈추지 않을 경우 38→…
-     inner[8].prev   = center;
-     center.shortcut = inner[10];  // 정확히 42에서 멈춘 후 40→…
-     inner[10].prev  = center;
+     center.next     = innerNodes[8];   // 멈추지 않을 경우 38→…
+     innerNodes[8].prev   = center;
+     center.shortcut = innerNodes[10];  // 정확히 42에서 멈춘 후 40→…
+     innerNodes[10].prev  = center;
 
      // (5) 외곽 교차점 숏컷 설정 (ID 매핑 방식)
-     //    배열 형식을 {외곽ID, 내부ID}로 두고, find()로 BoardNode를 가져옵니다.
-     int[][] sc = {
-         { 5, 30 },   // 외곽 5 → 내부 30
-         {10, 32 },   // 외곽 10 → 내부 32
-         {15, 34 },   // 외곽 15 → 내부 34
-         {20, 36 }    // 외곽 20 → 내부 36
-     };
-     for (int[] pair : sc) {
-         BoardNode outerNode = find(pair[0]);   // ex. ID=5 노드
-         BoardNode target    = find(pair[1]);   // ex. ID=30 노드
-         outerNode.isIntersection = true;
-         outerNode.shortcut       = target;
-     }
- }
-
- private BoardNode find(int id) {
-     return nodes.stream()
-                 .filter(n -> n.id == id)
-                 .findFirst()
-                 .orElse(null);
+     // 배열 형식을 {외곽ID, 내부ID}로 두고, find()로 BoardNode를 가져옵니다.
+     int[][] sc = {{5, 30 }, {10, 32 }, {15, 34 }, {20, 36 }};
+     setShortcuts(sc);
  }
 }

@@ -3,11 +3,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 class BoardNode {
-    int id;
-    String name;
+    final int id;
+    final String name;
+
     BoardNode next;
     BoardNode prev; // 복구
     BoardNode shortcut;
+
     boolean isIntersection = false;
     List<Piece> pieces;
 

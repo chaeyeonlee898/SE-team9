@@ -23,93 +23,17 @@ class Game {
             Player player = players.get(currentTurn);
             System.out.println("\n--- " + player.getName() + "의 턴 ---");
             board.printBoard();
-
             System.out.println("윷 던지기 방식 선택 (1: 지정, 2: 랜덤): ");
             int mode = scanner.nextInt();
-            List<YutResult> results = new ArrayList<>(); // 윷 결과 리스트
-
-            boolean extra = false; // 윷, 모일 때 추가 던지기 여부
-            if (mode == 1) { // 지정 모드
-                do {
-                    if (extra) {
-                        System.out.println("추가 윷 던지기 기회 발생!");
-                    }
-                    System.out.println("번호 선택: 1. 빽도  2. 도  3. 개  4. 걸  5. 윷  6. 모");
-                    int choice = scanner.nextInt();
-                    YutResult res;
-                    switch (choice) {
-                        case 1: res = YutResult.BACKDO; break;
-                        case 2: res = YutResult.DO; break;
-                        case 3: res = YutResult.GAE; break;
-                        case 4: res = YutResult.GEOL; break;
-                        case 5: res = YutResult.YUT; break;
-                        case 6: res = YutResult.MO; break;
-                        default:
-                            System.out.println("잘못된 선택");
-                            continue;
-                    }
-                    results.add(res);
-                    extra = res.grantsExtraThrow();
-                } while (extra);
-            } else { // 랜덤 모드
-                do {
-                    YutResult res = YutResult.throwYut(random);
-                    results.add(res);
-                    System.out.println("윷 결과: " + res);
-                    extra = res.grantsExtraThrow();
-                } while (extra);
-            }
+            List<YutResult> results = new ArrayList<>();
+            results = ThrowYutResult(scanner, mode, results); // 윷 결과 리스트
 
             // 결과 적용
             while (!results.isEmpty()) {
-                System.out.println("\n적용할 윷 결과를 선택하세요");
-                for (int i = 0; i < results.size(); i++) {
-                    System.out.println(i + ": " + results.get(i));
-                }
-                System.out.print("번호 입력: ");
-
-                if (!scanner.hasNextInt()) {
-                    scanner.next();
-                    System.out.println("숫자를 입력해주세요.");
-                    continue;
-                }
-
-                int resIdx = scanner.nextInt();
-                if (resIdx < 0 || resIdx >= results.size()) {
-                    System.out.println("잘못된 인덱스입니다. 다시 입력해주세요.");
-                    continue;
-                }
-
-                YutResult selectedRes = results.remove(resIdx);
-                System.out.println("선택한 결과: " + selectedRes);
+                YutResult selectedRes = selectYutResult(results, scanner);
 
                 // 이동할 말 선택
-                Piece chosen;
-                while (true) {
-                    System.out.println("\n이동할 말을 선택하세요");
-                    for (int i = 0; i < player.pieces.size(); i++) {
-                        System.out.println(i + ": " + player.pieces.get(i)
-                                + (player.pieces.get(i).finished ? " (완주)" : ""));
-                    }
-                    System.out.print("번호 입력: ");
-
-                    if (!scanner.hasNextInt()) {
-                        scanner.next();
-                        System.out.println("숫자를 입력해주세요.");
-                        continue;
-                    }
-                    int pieceIdx = scanner.nextInt();
-                    if (pieceIdx < 0 || pieceIdx >= player.pieces.size()) {
-                        System.out.println("잘못된 인덱스입니다. 다시 입력해주세요.");
-                        continue;
-                    }
-                    chosen = player.pieces.get(pieceIdx);
-                    if (chosen.finished) {
-                        System.out.println("이미 완주된 말입니다.");
-                        continue;
-                    }
-                    break;
-                }
+                Piece chosen = selectPiece(player, scanner);
 
                 // 말 이동
                 boolean captureOccurred = board.movePiece(chosen, selectedRes.getStepCount(), scanner);
@@ -124,33 +48,7 @@ class Game {
                 // 캡처 시 추가 던지기 (윷·모 연속)
                 if (captureOccurred) {
                     System.out.println("말을 잡았습니다! 추가 던지기 기회 발생!");
-                    if (mode == 1) {
-                        YutResult extraRes;
-                        do {
-                            System.out.println("추가 윷 던지기 기회! 번호 선택: 1. 빽도  2. 도  3. 개  4. 걸  5. 윷  6. 모");
-                            int choice = scanner.nextInt();
-                            switch (choice) {
-                                case 1: extraRes = YutResult.BACKDO; break;
-                                case 2: extraRes = YutResult.DO; break;
-                                case 3: extraRes = YutResult.GAE; break;
-                                case 4: extraRes = YutResult.GEOL; break;
-                                case 5: extraRes = YutResult.YUT; break;
-                                case 6: extraRes = YutResult.MO; break;
-                                default:
-                                    System.out.println("잘못된 선택, 랜덤으로 처리합니다.");
-                                    extraRes = YutResult.throwYut(random);
-                                    System.out.println("추가 윷 결과: " + extraRes);
-                            }
-                            results.add(extraRes);
-                        } while (extraRes.grantsExtraThrow());
-                    } else {
-                        YutResult extraRes;
-                        do {
-                            extraRes = YutResult.throwYut(random);
-                            System.out.println("추가 윷 결과: " + extraRes);
-                            results.add(extraRes);
-                        } while (extraRes.grantsExtraThrow());
-                    }
+                    results = ThrowYutResult(scanner, mode, results);
                 }
             }
 
@@ -162,5 +60,99 @@ class Game {
             currentTurn = (currentTurn + 1) % players.size();
         }
         System.out.println("게임 종료");
+    }
+
+    private List<YutResult> ThrowYutResult(Scanner scanner, int mode, List<YutResult> results) {
+        boolean extra = false; // 윷, 모일 때 추가 던지기 여부
+
+        do{
+            YutResult res;
+            if (mode == 1) {
+                res = UserYutThrow(scanner);
+            } else if (mode == 2) {
+                res = YutResult.throwYut(random);
+                System.out.println("윷 결과: " + res);
+            } else {
+                System.out.println("1 또는 2를 선택하세요.");
+                continue; // do-while 전체 반복
+            }
+            results.add(res);
+            extra = res.grantsExtraThrow();
+            if(extra){ System.out.println("추가 윷 던지기 기회 발생!");}
+        }while(extra);
+        return results;
+    }
+
+    private YutResult UserYutThrow(Scanner scanner) {
+        while(true){
+            System.out.println("번호 선택: 1. 빽도  2. 도  3. 개  4. 걸  5. 윷  6. 모");
+            int choice = scanner.nextInt();
+
+            switch (choice) {
+                case 1: return YutResult.BACKDO;
+                case 2: return YutResult.DO;
+                case 3: return YutResult.GAE;
+                case 4: return YutResult.GEOL;
+                case 5: return YutResult.YUT;
+                case 6: return YutResult.MO;
+                default:
+                    System.out.println("잘못된 선택");
+            }
+        }
+    }
+
+    private YutResult selectYutResult(List<YutResult> results, Scanner scanner) {
+        while(true){
+            System.out.println("\n적용할 윷 결과를 선택하세요");
+
+        for (int i = 0; i < results.size(); i++) {
+            System.out.println(i + ": " + results.get(i));
+        }
+        System.out.print("번호 입력: ");
+
+        if (!scanner.hasNextInt()) {
+            scanner.next();
+            System.out.println("숫자를 입력해주세요.");
+            continue;
+        }
+
+        int resIdx = scanner.nextInt();
+        if (resIdx < 0 || resIdx >= results.size()) {
+            System.out.println("잘못된 인덱스입니다. 다시 입력해주세요.");
+            continue;
+        }
+
+        YutResult selectedRes = results.remove(resIdx);
+        System.out.println("선택한 결과: " + selectedRes);
+        return selectedRes;
+        }
+    }
+
+    private Piece selectPiece(Player player, Scanner scanner) {
+        while (true) {
+            System.out.println("\n이동할 말을 선택하세요");
+            for (int i = 0; i < player.pieces.size(); i++) {
+                System.out.println(i + ": " + player.pieces.get(i)
+                        + (player.pieces.get(i).finished ? " (완주)" : ""));
+            }
+            System.out.print("번호 입력: ");
+
+            if (!scanner.hasNextInt()) {
+                scanner.next();
+                System.out.println("숫자를 입력해주세요.");
+                continue;
+            }
+            int pieceIdx = scanner.nextInt();
+            if (pieceIdx < 0 || pieceIdx >= player.pieces.size()) {
+                System.out.println("잘못된 인덱스입니다. 다시 입력해주세요.");
+                continue;
+            }
+            Piece chosen = player.pieces.get(pieceIdx);
+            if (chosen.finished) {
+                System.out.println("이미 완주된 말입니다.");
+                continue;
+            }
+            return chosen;
+        }
     }
 }
