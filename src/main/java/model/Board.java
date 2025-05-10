@@ -153,6 +153,10 @@ public abstract class Board {
     private void finishPieces(List<Piece> stack){
         for (Piece p : stack) {
             p.finished = true;
+            if (p.position != null) {
+                p.position.pieces.remove(p);
+                p.position = null;
+            }
             System.out.println(p.owner.getName() + "의 말이 완주했습니다!");
         }
     }

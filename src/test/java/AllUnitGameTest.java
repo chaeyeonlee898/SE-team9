@@ -29,7 +29,11 @@ public class AllUnitGameTest {
 
         board = new HexagonBoard();
         player = new Player("Player1", 2, board);
+<<<<<<< HEAD
+        piece = player.pieces.get(0);
+=======
         piece = player.getPieces().get(0);
+>>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
         scanner = new Scanner(System.in);
     }
 
@@ -41,7 +45,11 @@ public class AllUnitGameTest {
     @Test
     void testMoveOneStepFromStart() {
         board.movePiece(piece, 1, scanner);
+<<<<<<< HEAD
+        assertNotNull(piece.position);
+=======
         assertNotNull(piece.getPosition());
+>>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
     }
 
     @Test
@@ -56,13 +64,21 @@ public class AllUnitGameTest {
         board.movePiece(piece, 1, scanner);   // 0 → 1
         board.movePiece(piece, -1, scanner);  // 1 → 0 (출발점)
         board.movePiece(piece, 1, scanner);   // 0 → 1 (한 칸 더 이동)
+<<<<<<< HEAD
+        assertTrue(piece.finished);           // 완주 처리됨
+=======
         assertTrue(piece.isFinished());           // 완주 처리됨
+>>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
     }
 
     @Test
     void testCaptureEnemyPiece() {
         Player enemy = new Player("Enemy", 1, board);
+<<<<<<< HEAD
+        Piece enemyPiece = enemy.pieces.get(0);
+=======
         Piece enemyPiece = enemy.getPieces().get(0);
+>>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
         board.movePiece(enemyPiece, 2, scanner);
         board.movePiece(piece, 2, scanner);
 
@@ -71,8 +87,13 @@ public class AllUnitGameTest {
     @Test
     void testStackMoveTogether() {
         player = new Player("Player1", 2, board);
+<<<<<<< HEAD
+        Piece p1 = player.pieces.get(0);
+        Piece p2 = player.pieces.get(1);
+=======
         Piece p1 = player.getPieces().get(0);
         Piece p2 = player.getPieces().get(1);
+>>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
 
         board.movePiece(p1, 1, scanner);  // 0 → 1
         board.movePiece(p2, 1, scanner);  // p2도 1번으로 이동 (업)
