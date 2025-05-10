@@ -99,7 +99,9 @@ public abstract class Board {
             piece.justStoppedAtIntersection = prev.isIntersection && prev.shortcut != null;
 
             System.out.println(piece.owner.getName() + "의 말이 빽도로 " + prev + "로 한 칸 뒤로 이동했습니다.");
-            return captureByBackdo;
+            System.out.println("현재 moveHistory: " + piece.moveHistory);
+
+        return captureByBackdo;
     }
 
     private boolean backdoFromStart(Piece piece){
@@ -167,6 +169,16 @@ public abstract class Board {
         boolean stopatIntersection = false;
         boolean squareboardException = false;
 
+        // * 사각형 판 예외 처리
+        BoardNode temp = cur;
+        if(this instanceof SquareBoard && temp.id  == 23 && temp.next.id == 28){  // 사각형 판에서 23 -> 28로 가는 경우
+            squareboardException = true;         // 숏컷(26 방향)으로 가도록 플래그 설정
+            System.out.println("SquareBoardException");
+        }
+
+        if(cur.isIntersection){  // 숏컷 적용하는 경우(교차점 or 사각형판 예외)
+            stopatIntersection = true;
+        }
         // 1) 교차점 여부에 따라 한 칸 이동
         if((cornerSquare || cornerPent || cornerHex) && cur.shortcut != null)
             cur = cur.shortcut;  // 교차점(마지막 제외)이면 shortcut
@@ -175,9 +187,10 @@ public abstract class Board {
         path.add(cur);
 
         // 2) 사각형 판 예외 처리
-        BoardNode temp = cur;
-        for (int i = 0; i < steps-1; i++) {
-            if(temp.id ==23 && temp.next.id == 28){  // 사각형 판에서 23 -> 28로 가는 경우
+        //BoardNode temp = cur;
+
+        /*for (int i = 0; i < steps-1; i++) {
+            if(temp.id  == 23 && temp.next.id == 28){  // 사각형 판에서 23 -> 28로 가는 경우
                 squareboardException = true;         // 숏컷(26 방향)으로 가도록 플래그 설정
                 System.out.println("SquareBoardException");
             }
@@ -186,17 +199,24 @@ public abstract class Board {
             else
                 temp = temp.next;
             System.out.println("temp: "+temp.id);
-        }
-        if(temp.isIntersection || squareboardException){  // 숏컷 적용하는 경우(교차점 or 사각형판 예외)
-            stopatIntersection = true;
-        }
+        }*/
+
 
         // 3) 나머지 경로 이동
         for(int i=1; i<steps ;i++){
-            if(i==steps-1 && cur.shortcut!=null && stopatIntersection){ // 숏컷 이동
+            if(this instanceof SquareBoard && cur.id  == 23 && cur.next.id == 28){  // 사각형 판에서 23 -> 28로 가는 경우
+                squareboardException = true;         // 숏컷(26 방향)으로 가도록 플래그 설정
+                System.out.println("SquareBoardException");
+            }
+            if(squareboardException && cur.id == 28){
+                System.out.println("Move: "+cur.id+"->"+cur.shortcut.id);
+                cur = cur.shortcut;
+                squareboardException = false;
+            }
+            /*else if(i==steps-1 && cur.shortcut!=null && stopatIntersection){ // 숏컷 이동
                 cur = cur.shortcut;
                 stopatIntersection = false;
-            }
+            }*/
             else  // 기존 경로 이동
                 cur = cur.next;
             path.add(cur);
