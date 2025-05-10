@@ -3,6 +3,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
 
 import java.util.Scanner;
+<<<<<<< HEAD
+=======
+import model.*;
+>>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)  // BeforeAll 사용할 때 static 선언을 회피하기 위해
 public abstract class AbstractBoardTest {
@@ -19,7 +23,11 @@ public abstract class AbstractBoardTest {
     void setUp() {
         board   = createBoard();
         player  = new Player("P", 1, board);
+<<<<<<< HEAD
         piece   = player.pieces.get(0);
+=======
+        piece   = player.getPieces().get(0);
+>>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
         scanner = new Scanner("");
     }
 

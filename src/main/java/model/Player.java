@@ -1,8 +1,10 @@
+package model;
+
 //Player.java
 import java.util.ArrayList;
 import java.util.List;
 
-class Player {
+public class Player {
     private String name;
     List<Piece> pieces;
 
@@ -25,4 +27,17 @@ class Player {
         }
         return true;
     }
+
+    public List<Piece> getPieces() {
+        return pieces;
+    }
+
+    public long getFinishedPieceCount() {
+        return pieces.stream().filter(Piece::isFinished).count();
+    }
+
+    public long getRemainingPieceCount() {
+        return pieces.stream().filter(p -> !p.isFinished()).count();
+    }
+
 }
