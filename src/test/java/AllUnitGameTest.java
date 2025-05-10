@@ -18,7 +18,7 @@ import java.util.*;
 public class AllUnitGameTest {
 
 
-    HexagonBoard board3;
+    Board board;
     Player player;
     Piece piece;
     Scanner scanner;
@@ -27,8 +27,8 @@ public class AllUnitGameTest {
     @BeforeAll
     void setUp() {
 
-        board3 = new HexagonBoard();
-        player = new Player("Player1", 2, board3);
+        board = new HexagonBoard();
+        player = new Player("Player1", 2, board);
         piece = player.pieces.get(0);
         scanner = new Scanner(System.in);
     }
@@ -40,43 +40,43 @@ public class AllUnitGameTest {
 
     @Test
     void testMoveOneStepFromStart() {
-        board3.movePiece(piece, 1, scanner);
+        board.movePiece(piece, 1, scanner);
         assertNotNull(piece.position);
     }
 
     @Test
     void testBackdoWithoutStartFails() {
-        boolean result = board3.movePiece(piece, -1, scanner);
+        boolean result = board.movePiece(piece, -1, scanner);
         assertFalse(result);
         assertNull(piece.position);
     }
 
     @Test
     void testBackdoThenForwardCompletesLap() {
-        board3.movePiece(piece, 1, scanner);   // 0 → 1
-        board3.movePiece(piece, -1, scanner);  // 1 → 0 (출발점)
-        board3.movePiece(piece, 1, scanner);   // 0 → 1 (한 칸 더 이동)
+        board.movePiece(piece, 1, scanner);   // 0 → 1
+        board.movePiece(piece, -1, scanner);  // 1 → 0 (출발점)
+        board.movePiece(piece, 1, scanner);   // 0 → 1 (한 칸 더 이동)
         assertTrue(piece.finished);           // 완주 처리됨
     }
 
     @Test
     void testCaptureEnemyPiece() {
-        Player enemy = new Player("Enemy", 1, board3);
+        Player enemy = new Player("Enemy", 1, board);
         Piece enemyPiece = enemy.pieces.get(0);
-        board3.movePiece(enemyPiece, 2, scanner);
-        board3.movePiece(piece, 2, scanner);
+        board.movePiece(enemyPiece, 2, scanner);
+        board.movePiece(piece, 2, scanner);
 
     }
 
     @Test
     void testStackMoveTogether() {
-        player = new Player("Player1", 2, board3);
+        player = new Player("Player1", 2, board);
         Piece p1 = player.pieces.get(0);
         Piece p2 = player.pieces.get(1);
 
-        board3.movePiece(p1, 1, scanner);  // 0 → 1
-        board3.movePiece(p2, 1, scanner);  // p2도 1번으로 이동 (업)
-        board3.movePiece(p1, 2, scanner);  // 1 → 2 → 3
+        board.movePiece(p1, 1, scanner);  // 0 → 1
+        board.movePiece(p2, 1, scanner);  // p2도 1번으로 이동 (업)
+        board.movePiece(p1, 2, scanner);  // 1 → 2 → 3
 
         assertNotNull(p1.position, "p1.position이 null입니다.");
         assertNotNull(p2.position, "p2.position이 null입니다.");
@@ -124,9 +124,11 @@ public class AllUnitGameTest {
     // 사각형 판 시나리오
     // ────────────────────────────────────────────────────────────
 
-    /** a. 0(윷)→4(개)→6(윷)→10(윷)→26(걸)→완주 */
+    @DisplayName("SquareBoard 교차점별 이동 로직 테스트")
+
+    /** a. 0(윷)→4(개)→6(윷)→10(윷)→26(걸)→완주 **/
     @Test
-    void testSquareScenarioA() {
+    void testSquareInterSectionA() {  /** 첫 번째 교차점 (5) **/
         SquareBoard board = new SquareBoard();
         Player player = new Player("P", 1, board);
         Piece piece = player.pieces.get(0);
