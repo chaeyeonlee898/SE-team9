@@ -57,6 +57,8 @@ public abstract class Board {
         boolean captureOccured = handleCapture(piece, dest);
 
         System.out.println(piece.owner.getName()+"의 말("+stack.size()+"개)이 "+dest+"로 이동했습니다.");
+        System.out.println("현재 moveHistory: " + piece.moveHistory);
+
         return captureOccured;
     }
 
@@ -102,20 +104,27 @@ public abstract class Board {
 
             // 이동
             for (Piece p : stack) {
-                // 현재 위치 기억
-                BoardNode current = p.position;
+                if (!p.moveHistory.isEmpty()) {
+                    p.moveHistory.pop();  // 현재 위치 제거
+                }
+                if (p.moveHistory.isEmpty() || p.moveHistory.peek() != prev) {
+                    p.moveHistory.push(prev);
+                }
                 // 일반 이동에 들어가기 직전, lastPosition 에 현재 위치 저장
                 // 첫 진입인 경우 start 가 이전 위치
                 p.lastPosition = p.position == null ? getStart() : p.position;
+                // 이전 위치에서 제거
+                if (p.position != null) {
+                    p.position.pieces.remove(p);
+                }
+                // 현재 위치 기억
+                //BoardNode current = p.position;
                 prev.pieces.add(p);
                 p.position = prev;
-                // 이전 위치에서 제거
-                if (current != null) {
-                    current.pieces.remove(p);
-                }
+
                 // 빽도 후에도 intersection 여부 유지
                 p.justStoppedAtIntersection = prev.isIntersection && prev.shortcut != null;
-            }
+                            }
 
             System.out.println(piece.owner.getName() + "의 말이 빽도로 " + prev + "로 한 칸 뒤로 이동했습니다.");
             System.out.println("현재 moveHistory: " + piece.moveHistory);
@@ -236,7 +245,10 @@ public abstract class Board {
 
     private void recordAndMove(List<Piece> stack, BoardNode src, List<BoardNode> path, BoardNode dest){
         for(Piece p:stack){
-            p.moveHistory.push(src);
+            // path의 첫 노드가 src일 경우 push하지 않음
+            if ((path.isEmpty() || path.get(0) != src)||(p.moveHistory!=null&&p.moveHistory.peek()!=src)) {
+                p.moveHistory.push(src);
+            }
             for(BoardNode n:path)
                 p.moveHistory.push(n);
             dest.pieces.add(p);
