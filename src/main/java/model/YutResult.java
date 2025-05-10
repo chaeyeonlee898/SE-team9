@@ -1,7 +1,9 @@
 //YutResult.java
+package model;
+
 import java.util.Random;
 
-enum YutResult {
+public enum YutResult {
     BACKDO(-1, false), DO(1, false), GAE(2, false), GEOL(3, false), YUT(4, true), MO(5, true);
 
     private final int stepCount;

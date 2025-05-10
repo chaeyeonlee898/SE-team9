@@ -1,4 +1,11 @@
+package controller;
+
 import java.util.Scanner;
+import model.Board;
+import model.Game;
+import model.SquareBoard;
+import model.PentagonBoard;
+import model.HexagonBoard;
 
 public class YutnoriGame {
     public static void main(String[] args) {
@@ -6,36 +13,9 @@ public class YutnoriGame {
         boolean playAgain = true;
         while (playAgain) {
             // 1) 보드 타입 입력
-            int boardType;
-            while (true) {
-                System.out.println("보드 타입 선택 (1: 사각형, 2: 오각형, 3: 육각형): ");
-                if (!scanner.hasNextInt()) {
-                    scanner.next();
-                    System.out.println("숫자를 입력해주세요.");
-                    continue;
-                }
-                boardType = scanner.nextInt();
-                if (boardType < 1 || boardType > 3) {
-                    System.out.println("1~3 사이의 숫자를 입력해주세요.");
-                } else {
-                    break;
-                }
-            }
-            Board board;
-            switch (boardType) {
-                case 2:
-                    board = new PentagonBoard();
-                    break;
-                case 3:
-                    board = new HexagonBoard();
-                    break;
-                default:
-                    board = new SquareBoard();
-            }
-
+            Board board = selectBoard(scanner);
             // 2) 플레이어 수 입력 (2~4명)
             int numPlayers = InputNumPlayers(scanner);
-
             // 3) 말 개수 입력 (2~5개)
             int piecesPerPlayer = InputNumPieces(scanner);
 
@@ -51,8 +31,26 @@ public class YutnoriGame {
         scanner.close();
     }
 
+    private static Board selectBoard(Scanner scanner) {
+        while (true) {
+            System.out.println("보드 타입 선택 (1: 사각형, 2: 오각형, 3: 육각형): ");
+            if (!scanner.hasNextInt()) {
+                scanner.next();
+                System.out.println("숫자를 입력해주세요.");
+                continue;
+            }
+            int boardType = scanner.nextInt();
+            switch (boardType) {
+                case 1: return new SquareBoard();
+                case 2: return new PentagonBoard();
+                case 3: return new HexagonBoard();
+                default: System.out.println("1~3 사이의 숫자를 입력해주세요.");
+            }
+        }
+    }
+
     // 플레이어 수 입력 루프
-    public static int InputNumPlayers(Scanner scanner) {
+    private static int InputNumPlayers(Scanner scanner) {
         int numPlayers;
         while (true) {
             System.out.println("플레이어 수 입력 (2~4명): ");
@@ -72,7 +70,7 @@ public class YutnoriGame {
     }
 
     // 말 개수 입력 루프
-    public static int InputNumPieces(Scanner scanner) {
+    private static int InputNumPieces(Scanner scanner) {
         int numPieces;
         while (true) {
             System.out.println("말 개수 입력 (2~5개): ");
