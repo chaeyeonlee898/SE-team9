@@ -3,6 +3,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInstance;
 
 import java.util.Scanner;
+import model.*;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)  // BeforeAll 사용할 때 static 선언을 회피하기 위해
 public abstract class AbstractBoardTest {
@@ -19,7 +20,7 @@ public abstract class AbstractBoardTest {
     void setUp() {
         board   = createBoard();
         player  = new Player("P", 1, board);
-        piece   = player.pieces.get(0);
+        piece   = player.getPieces().get(0);
         scanner = new Scanner("");
     }
 

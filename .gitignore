@@ -1,0 +1,9 @@
+# IntelliJ
+.idea/
+*.iml
+
+# Build output
+out/
+
+# OS-specific
+.DS_Store
