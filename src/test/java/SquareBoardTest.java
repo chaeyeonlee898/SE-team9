@@ -2,11 +2,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
-<<<<<<< HEAD
-
-=======
 import model.*;
->>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
 @DisplayName("SquareBoard 교차점별 이동 로직 테스트")
 public class SquareBoardTest extends AbstractBoardTest {
 
@@ -26,11 +22,7 @@ public class SquareBoardTest extends AbstractBoardTest {
                 YutResult.GEOL.getStepCount(),
                 YutResult.GAE .getStepCount()
         );
-<<<<<<< HEAD
-        assertTrue(piece.finished, "모→걸→개→빽도→걸→개 순서로 던지면 완주되어야 합니다.");
-=======
         assertTrue(piece.isFinished(), "모→걸→개→빽도→걸→개 순서로 던지면 완주되어야 합니다.");
->>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
     }
 
     /** 0(모)->5(모)->25(걸)->17(걸)->0(빽도)->19(개)->0(완주) + 0 에서 빽도 수행 */
@@ -45,11 +37,7 @@ public class SquareBoardTest extends AbstractBoardTest {
                 YutResult.GAE .getStepCount(),
                 YutResult.YUT .getStepCount()
         );
-<<<<<<< HEAD
-        assertTrue(piece.finished, "모→모→걸→걸→빽도→개→윷 순서로 던지면 완주되어야 합니다.");
-=======
         assertTrue(piece.isFinished(), "모→모→걸→걸→빽도→개→윷 순서로 던지면 완주되어야 합니다.");
->>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
     }
 
     /** 0(윷)→4(모)→9(도)→10(걸)→28(걸)→0(미완주) + 0 지점에 도착시 미완주 */
@@ -62,13 +50,8 @@ public class SquareBoardTest extends AbstractBoardTest {
                 YutResult.GEOL.getStepCount(),
                 YutResult.GEOL.getStepCount()
         );
-<<<<<<< HEAD
-        assertFalse(piece.finished, "윷→모→도→걸→걸 순서로 던지면 아직 완주되지 않아야 합니다.");
-        assertEquals(0, piece.position.id, "0(출발점)에 멈춰도 미완주 상태여야 합니다.");
-=======
         assertFalse(piece.isFinished(), "윷→모→도→걸→걸 순서로 던지면 아직 완주되지 않아야 합니다.");
         assertEquals(0, piece.getPosition().getId(), "0(출발점)에 멈춰도 미완주 상태여야 합니다.");
->>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
     }
 
     /** 0(윷)->4(모)->9(도)->10(모)->25(모)->19(개)->0(완주) */
@@ -83,11 +66,7 @@ public class SquareBoardTest extends AbstractBoardTest {
                 YutResult.GAE.getStepCount(),
                 YutResult.YUT.getStepCount()
         );
-<<<<<<< HEAD
-        assertTrue(piece.finished, "윷→모→도→모→모→개→윷 순서로 던지면 완주되어야 합니다.");
-=======
         assertTrue(piece.isFinished(), "윷→모→도→모→모→개→윷 순서로 던지면 완주되어야 합니다.");
->>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
     }
 
     /** 0(윷)->4(모)->9(모)->14(도)->15(모)->0(개)->0(완주) + 0 지점 도착 후 positive step (완주) */
@@ -101,11 +80,7 @@ public class SquareBoardTest extends AbstractBoardTest {
                 YutResult.MO .getStepCount(),
                 YutResult.GAE.getStepCount()
         );
-<<<<<<< HEAD
-        assertTrue(piece.finished, "윷→모→모→도→모→개 순서로 던지면 완주되어야 합니다.");
-=======
         assertTrue(piece.isFinished(), "윷→모→모→도→모→개 순서로 던지면 완주되어야 합니다.");
->>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
     }
 
     /** 0(윷)->4(모)->9(모)->14(윷)->18(걸)->0(완주) */
@@ -118,11 +93,7 @@ public class SquareBoardTest extends AbstractBoardTest {
                 YutResult.YUT.getStepCount(),   // 4
                 YutResult.GEOL.getStepCount()   // 3 -> 0 (완주)
         );
-<<<<<<< HEAD
-        assertTrue(piece.finished, "윷→모→모→윷→걸 순서로 던지면 완주되어야 합니다.");
-=======
         assertTrue(piece.isFinished(), "윷→모→모→윷→걸 순서로 던지면 완주되어야 합니다.");
->>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
     }
 
     /** 0(도)->1(빽도)->0(빽도)->1(빽도)->0(개)->0(완주) */
@@ -130,21 +101,6 @@ public class SquareBoardTest extends AbstractBoardTest {
     void squareG() {
         // 도(1) → 1
         apply(YutResult.DO.getStepCount());
-<<<<<<< HEAD
-        assertEquals(1, piece.position.id, "도 후 위치는 1이어야 합니다.");
-        // 빽도 → 0
-        apply(YutResult.BACKDO.getStepCount());
-        assertEquals(0, piece.position.id, "빽도 후 위치는 0이어야 합니다.");
-        // 빽도 → 최종 이력 따라 1
-        apply(YutResult.BACKDO.getStepCount());
-        assertEquals(1, piece.position.id, "연속 빽도 후 위치는 1이어야 합니다.");
-        // 빽도 → 0
-        apply(YutResult.BACKDO.getStepCount());
-        assertEquals(0, piece.position.id, "다시 빽도 후 위치는 0이어야 합니다.");
-        // 개(2) → 마지막 완주
-        apply(YutResult.GAE.getStepCount());
-        assertTrue(piece.finished, "개 후 완주되어야 합니다.");
-=======
         assertEquals(1, piece.getPosition().getId(), "도 후 위치는 1이어야 합니다.");
         // 빽도 → 0
         apply(YutResult.BACKDO.getStepCount());
@@ -158,6 +114,5 @@ public class SquareBoardTest extends AbstractBoardTest {
         // 개(2) → 마지막 완주
         apply(YutResult.GAE.getStepCount());
         assertTrue(piece.isFinished(), "개 후 완주되어야 합니다.");
->>>>>>> b131ef782f8106be45e3c30349bf9793b2b618ed
     }
 }
