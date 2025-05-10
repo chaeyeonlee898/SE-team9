@@ -29,6 +29,7 @@ public class AllUnitGameTest {
 
         board = new HexagonBoard();
         player = new Player("Player1", 2, board);
+
         piece = player.getPieces().get(0);
         scanner = new Scanner(System.in);
     }

@@ -133,19 +133,32 @@ public abstract class Board {
     }
 
     private boolean backdoFromStart(Piece piece){
-        // 1) lastPosition 으로 돌아가기
+        // lastPosition 으로 돌아가기
         BoardNode prev = piece.lastPosition;
 
-        // 2) 보드 상 위치 갱신
-        getStart().pieces.remove(piece);
-        prev.pieces.add(piece);
-        piece.position = prev;
-        piece.justStoppedAtIntersection = prev.isIntersection && prev.shortcut != null;
+        // START에 올라와 있는 같은 소유주의 말 모두 수집
+        List<Piece> stack = new ArrayList<>();
+        for (Piece p : new ArrayList<>(getStart().pieces)) {
+            if (p.owner == piece.owner) {
+                stack.add(p);
+            }
+        }
 
-        // 3) moveHistory 재설정: [start, prev]
-        piece.moveHistory.clear();
-        piece.moveHistory.push(getStart());
-        piece.moveHistory.push(prev);
+        // START에서 모두 제거
+        for (Piece p : stack) {
+            getStart().pieces.remove(p);
+        }
+
+        // 모두 이전 위치(prev)로 이동
+        for (Piece p : stack) {
+            prev.pieces.add(p);
+            p.position = prev;
+            // 이력 초기화: START → prev
+            p.moveHistory.clear();
+            p.moveHistory.push(getStart());
+            p.moveHistory.push(prev);
+            p.justStoppedAtIntersection = prev.isIntersection && prev.shortcut != null;
+        }
 
         System.out.println("start 지점에서 빽도! → 이전 위치로 돌아갑니다.");
         return false;
