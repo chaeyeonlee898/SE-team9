@@ -11,26 +11,16 @@ import java.awt.*;
  */
 public class ControlPanel extends JPanel {
 
-    private final GameController controller;
     private final JButton throwButton;
-    //private final JButton selectButton;
 
     public ControlPanel(GameController controller) {
-        this.controller = controller;
 
         setLayout(new FlowLayout());
 
         throwButton = new JButton("윷 던지기");
-        //selectButton = new JButton("지정 윷 던지기");
-
         add(throwButton);
-        //add(selectButton);
 
-        throwButton.addActionListener(e -> controller.chooseThrowMode());
-        //selectButton.addActionListener(e -> controller.chooseThrowMode());
-
-
-        // throwButton.addActionListener(e -> controller.throwYutRandom());
-        //selectButton.addActionListener(e -> controller.throwYutManual());
+        // 버튼 클릭 시 GameController의 onRoll() 메서드를 호출
+        throwButton.addActionListener(e -> controller.onRoll());
     }
 }

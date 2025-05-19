@@ -1,6 +1,9 @@
 package controller;
 
-import model.*;
+import model.Game;
+import model.Piece;
+import model.YutResult;
+import view.DialogUtils;
 import view.GameFrame;
 import view.GamePanel;
 
@@ -9,6 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+/**
+ * GameController는 뷰로부터 입력을 받아 모델(Game)을 호출하고,
+ * 화면(GamePanel, 라벨 등)을 갱신하는 역할만 담당합니다.
+ */
 public class GameController {
     private final Game game;
     private final GamePanel gamePanel;
@@ -16,142 +23,119 @@ public class GameController {
     private final JTextArea logArea;
     private final GameFrame gameFrame;
     private final JLabel statusLabel;
-    private final List<YutResult> pendingResults = new ArrayList<>();
-    private final Random random = new Random();
-    private boolean isRandomMode = true;
+    private final Random rand = new Random();
 
-    public GameController(Game game, GamePanel gamePanel, JLabel turnLabel, JTextArea logArea, GameFrame gameFrame, JLabel statusLabel) {
+    public GameController(
+            Game game,
+            GamePanel gamePanel,
+            JLabel turnLabel,
+            JTextArea logArea,
+            GameFrame gameFrame,
+            JLabel statusLabel
+    ) {
         this.game = game;
         this.gamePanel = gamePanel;
         this.turnLabel = turnLabel;
         this.logArea = logArea;
         this.gameFrame = gameFrame;
         this.statusLabel = statusLabel;
-        updateStatusLabel();
+
+        // 초기 화면 갱신
         updateTurnLabel();
+        updateStatusLabel();
+        gamePanel.refresh();
     }
 
-    public void chooseThrowMode() {
-        String[] options = {"지정 윷 던지기", "랜덤 윷 던지기"};
-        int choice = JOptionPane.showOptionDialog(null, "윷 던지기 방식을 선택하세요:", "던지기 방식 선택",
-                JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, options, options[1]);
-        if (choice == 0) {
-            isRandomMode = false;
-            do {
-                YutResult result = promptManualYutResult();
-                if (result == null) break;
-                pendingResults.add(result);
-            } while (pendingResults.get(pendingResults.size() - 1).grantsExtraThrow());
-        } else if (choice == 1) {
-            isRandomMode = true;
-            do {
-                YutResult result = YutResult.throwYut(random);
-                JOptionPane.showMessageDialog(null, "윷 결과: " + result);
-                pendingResults.add(result);
-            } while (pendingResults.get(pendingResults.size() - 1).grantsExtraThrow());
-        }
-        processResults();
-    }
+    /**
+     * 윷 던지기 버튼 클릭 시 호출되는 메서드
+     */
+    public void onRoll() {
+        /** 던지기 방식 선택 */
+        boolean randomMode = DialogUtils.askRandomMode();
 
-    private void processResults() {
-        Player current = game.getCurrentPlayer();
-        while (!pendingResults.isEmpty()) {
-            YutResult selectedResult = (YutResult) JOptionPane.showInputDialog(
-                    null,
-                    "적용할 윷 결과를 선택하세요",
-                    "윷 결과 적용",
-                    JOptionPane.PLAIN_MESSAGE,
-                    null,
-                    pendingResults.toArray(),
-                    pendingResults.get(0));
+        List<YutResult> pending = new ArrayList<>();
+        YutResult r;
+        do {
+            if (randomMode) {
+                /** 랜덤 모드 : model 의 throwYut() 을 사용 */
+                r = YutResult.throwYut(rand);
+            } else {
+                /** 수동 모드 : 사용자에게 결과를 직접 선택하도록 요청 */
+                r = DialogUtils.askManualThrow();
+                if (r == null) return;  // 취소 시 즉시 턴 종료
+            }
+            DialogUtils.showThrowResult(r);  // 던진 결과를 팝업에 출력
+            pending.add(r);  // 수집된 결과를 리스트에 추가
+        } while (r.grantsExtraThrow());
 
-            if (selectedResult == null) return;
-            pendingResults.remove(selectedResult);
+        /** 결과 적용 단계 */
+        while (!pending.isEmpty()) {
+            // 사용자가 수집된 결과 중 하나를 선택
+            YutResult sel = DialogUtils.selectYutResult(pending);
+            if (sel == null) break;  // 취소 시 적용 단계 종료
+            pending.remove(sel);
 
-            List<Piece> movablePieces = current.getPieces().stream().filter(p -> !p.isFinished()).toList();
-            if (movablePieces.isEmpty()) return;
+            // 이동할 말을 선택
+            Piece p = DialogUtils.askPieceSelection(
+                    game.getCurrentPlayer().getUnfinishedPieces()
+            );
+            if (p == null) return;  // 취소 시 턴 종료
 
-            Piece chosen = (Piece) JOptionPane.showInputDialog(
-                    null,
-                    "이동할 말을 선택하세요",
-                    "말 선택",
-                    JOptionPane.PLAIN_MESSAGE,
-                    null,
-                    movablePieces.toArray(),
-                    movablePieces.get(0));
+            // model 계층에 적용 : 말 이동, 캡처 여부 반환
+            boolean captured = game.applyYutResult(sel, p);
+            log(game.getCurrentPlayer().getName() + " → " + sel);
 
-            if (chosen == null) return;
-
-            boolean extra = game.applyYutResult(selectedResult, chosen);
+            // view 계층 갱신
             gamePanel.refresh();
+            updateTurnLabel();
             updateStatusLabel();
-            log(current.getName() + " → " + selectedResult + ", 말: " + chosen);
 
+            // 승리 판정
             if (game.isCurrentPlayerWin()) {
-                log(current.getName() + " 승리! 게임 종료");
-                int option = JOptionPane.showConfirmDialog(null,
-                        current.getName() + " 승리!\n게임을 다시 시작할까요?",
-                        "게임 종료",
-                        JOptionPane.YES_NO_OPTION);
-                if (option == JOptionPane.YES_OPTION) gameFrame.showStartPanel();
-                else System.exit(0);
+                if (DialogUtils.confirmRestart(game.getCurrentPlayer().getName())) {
+                    gameFrame.showStartPanel();
+                }
                 return;
             }
 
-            if (extra && !selectedResult.grantsExtraThrow()) {
-                // 캡처로 인한 추가 던지기
-                do {
-                    YutResult extraRes = isRandomMode ? YutResult.throwYut(random) : promptManualYutResult();
-                    if (extraRes == null) break;
-                    pendingResults.add(extraRes);
-                    JOptionPane.showMessageDialog(null, "추가 윷 결과: " + extraRes);
-                } while (pendingResults.get(pendingResults.size() - 1).grantsExtraThrow());
+            // 캡처 : 잡았을 때 추가 던지기
+            if (captured) {
+                List<YutResult> bonus = game.rollAllYuts(rand);
+                for (YutResult b : bonus) {
+                    DialogUtils.showThrowResult(b);
+                    pending.add(b);
+                }
             }
         }
+        /** 턴 종료 */
         game.nextTurn();
         updateTurnLabel();
         updateStatusLabel();
-        log("\n");
     }
 
-    private YutResult promptManualYutResult() {
-        String[] options = {"빽도", "도", "개", "걸", "윷", "모"};
-        String selected = (String) JOptionPane.showInputDialog(
-                null,
-                "지정할 윷 결과를 선택하세요:",
-                "지정 윷 던지기",
-                JOptionPane.PLAIN_MESSAGE,
-                null,
-                options,
-                options[0]);
 
-        if (selected == null) return null;
-
-        return switch (selected) {
-            case "빽도" -> YutResult.BACKDO;
-            case "도" -> YutResult.DO;
-            case "개" -> YutResult.GAE;
-            case "걸" -> YutResult.GEOL;
-            case "윷" -> YutResult.YUT;
-            case "모" -> YutResult.MO;
-            default -> null;
-        };
-    }
-
+    /**
+     * 현재 플레이어 정보로 턴 라벨 갱신
+     */
     private void updateTurnLabel() {
-        Player current = game.getCurrentPlayer();
-        turnLabel.setText("현재 플레이어: " + current.getName());
+        String name = game.getCurrentPlayer().getName();
+        turnLabel.setText("현재 플레이어: " + name);
     }
 
+    /**
+     * 현재 플레이어 정보로 상태 라벨 갱신
+     */
+    private void updateStatusLabel() {
+        long finished = game.getCurrentPlayer().getFinishedPieceCount();
+        long remaining = game.getCurrentPlayer().getRemainingPieceCount();
+        statusLabel.setText("완주: " + finished + " / 남은 말: " + remaining);
+    }
+
+    /**
+     * 로그 출력 및 스크롤 자동 이동
+     */
     private void log(String message) {
         logArea.append(message + "\n");
         logArea.setCaretPosition(logArea.getDocument().getLength());
-    }
-
-    private void updateStatusLabel() {
-        Player p = game.getCurrentPlayer();
-        long finished = p.getFinishedPieceCount();
-        long remaining = p.getRemainingPieceCount();
-        statusLabel.setText("완주: " + finished + " / 남은 말: " + remaining);
     }
 }

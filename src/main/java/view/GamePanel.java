@@ -240,7 +240,6 @@ public class GamePanel extends JPanel {
         return palette[idx % palette.length];
     }
 
-
     public void refresh() {
         repaint();
     }
