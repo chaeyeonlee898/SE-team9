@@ -68,18 +68,27 @@ public class GameController {
             pending.add(r);  // 수집된 결과를 리스트에 추가
         } while (r.grantsExtraThrow());
 
+        boolean applied = false;  // 윷 결과 적용 여부
         /** 결과 적용 단계 */
         while (!pending.isEmpty()) {
             // 사용자가 수집된 결과 중 하나를 선택
             YutResult sel = DialogUtils.selectYutResult(pending);
-            if (sel == null) break;  // 취소 시 적용 단계 종료
-            pending.remove(sel);
+            if (sel == null) {
+                if (!applied) {  // 윷 결과를 적용하지 않은 경우
+                    return; // 취소 시 윷 던지기 모드 다시 선택
+                } else {  // 윷 결과를 하나 이상 적용한 경우
+                    break;  // 취소 시 즉시 턴 종료
+                }
+            }
 
             // 이동할 말을 선택
             Piece p = DialogUtils.askPieceSelection(
                     game.getCurrentPlayer().getUnfinishedPieces()
             );
-            if (p == null) return;  // 취소 시 턴 종료
+            if (p == null) continue;  // 취소 시 윷 결과 다시 선택
+
+            pending.remove(sel);
+            applied = true;
 
             // model 계층에 적용 : 말 이동, 캡처 여부 반환
             boolean captured = game.applyYutResult(sel, p);
