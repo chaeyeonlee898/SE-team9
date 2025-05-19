@@ -7,6 +7,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.ArrayList;
 
 /**
  * GameFrame은 전체 윷놀이 Swing UI의 최상위 JFrame이다.
@@ -76,23 +77,27 @@ public class GameFrame extends JFrame {
         startButton = new JButton("게임 시작");
         startPanel.add(startButton, gbc);
 
-        startButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int numPlayers = (Integer) playerCountBox.getSelectedItem();
-                int numPieces = (Integer) pieceCountBox.getSelectedItem();
-                String boardType = (String) boardTypeBox.getSelectedItem();
+        startButton.addActionListener(e -> {
+            int numPlayers = (Integer) playerCountBox.getSelectedItem();
+            int numPieces  = (Integer) pieceCountBox .getSelectedItem();
+            String boardType    = (String)  boardTypeBox .getSelectedItem();
 
-                switch (boardType) {
-                    case "오각형": board = new PentagonBoard(); break;
-                    case "육각형": board = new HexagonBoard(); break;
-                    default: board = new SquareBoard(); break;
-                }
-
-                game = new Game(numPlayers, numPieces, board);
-                startGame();
+            // 1. Board, Player 리스트, Game 생성
+            Board board;
+            switch (boardType) {
+                case "사각형": board = new SquareBoard(); break;
+                case "오각형": board = new PentagonBoard(); break;
+                case "육각형": board = new HexagonBoard(); break;
+                default:       board = new SquareBoard();
             }
+
+            this.game = new Game(numPlayers, numPieces, board);
+
+            startGame();
         });
+
+        // 3) 시작 패널 추가
+        add(startPanel, BorderLayout.CENTER);
     }
 
     /**

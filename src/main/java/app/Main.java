@@ -1,4 +1,6 @@
-package view;
+package app;
+
+import view.GameFrame;
 
 import javax.swing.*;
 

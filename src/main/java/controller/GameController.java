@@ -140,7 +140,7 @@ public class GameController {
 
     private void updateTurnLabel() {
         Player current = game.getCurrentPlayer();
-        turnLabel.setText("현재 플레이어: " + current.getName());
+        turnLabel .setText("현재 플레이어: " + current.getName());
     }
 
     private void log(String message) {
@@ -149,9 +149,9 @@ public class GameController {
     }
 
     private void updateStatusLabel() {
-        Player p = game.getCurrentPlayer();
-        long finished = p.getFinishedPieceCount();
-        long remaining = p.getRemainingPieceCount();
-        statusLabel.setText("완주: " + finished + " / 남은 말: " + remaining);
+        Player p     = game.getCurrentPlayer();
+        long fin     = p.getFinishedPieceCount();
+        long remain  = p.getRemainingPieceCount();
+        statusLabel.setText("완주: " + fin + " / 남은 말: " + remain);
     }
 }
