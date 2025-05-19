@@ -3,6 +3,7 @@ package model;
 //Player.java
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Player {
     private String name;
@@ -40,4 +41,9 @@ public class Player {
         return pieces.stream().filter(p -> !p.isFinished()).count();
     }
 
+    public List<Piece> getUnfinishedPieces() {
+        return pieces.stream()
+                .filter(p -> !p.isFinished())
+                .collect(Collectors.toList());
+    }
 }

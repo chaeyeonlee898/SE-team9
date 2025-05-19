@@ -6,9 +6,9 @@ import java.util.Random;
 import java.util.Scanner;
 
 public class Game {
-    List<Player> players;
-    Board board;
-    int currentTurn = 0; // 플레이어 인덱스
+    private final List<Player> players;
+    private final Board board;
+    private int currentTurn = 0; // 플레이어 인덱스
     Random random = new Random();
 
     public Game(int numPlayers, int piecesPerPlayer, Board board) {
@@ -164,6 +164,16 @@ public class Game {
         return players.get(currentTurn);
     }
 
+    public List<YutResult> rollAllYuts(Random rand) {
+        List<YutResult> results = new ArrayList<>();
+        YutResult r;
+        do {
+            r = YutResult.throwYut(rand);
+            results.add(r);
+        } while (r.grantsExtraThrow());
+        return results;
+    }
+
     public List<Player> getPlayers() {
         return players;
     }
@@ -172,42 +182,27 @@ public class Game {
         return board;
     }
 
-    public int getCurrentTurn() {
-        return currentTurn;
-    }
-
     public void nextTurn() {
         currentTurn = (currentTurn + 1) % players.size();
-    }
-
-    public List<YutResult> throwYutSequence(boolean isRandom) {
-        List<YutResult> results = new ArrayList<>();
-        boolean extra;
-        do {
-            YutResult res = YutResult.throwYut(random);
-            results.add(res);
-            extra = res.grantsExtraThrow();
-        } while (extra);
-        return results;
     }
 
     public boolean applyYutResult(YutResult result, Piece piece) {
         if (piece == null || piece.isFinished()) return false;
 
-        // 🔧 상태 보정: 출발 전인 경우
+        // 출발 전인 경우
         if (piece.getPosition() == null) {
             piece.setHasLeftStart(false);
         }
 
-        // 🔧 상태 보정: 교차점에 멈춘 경우
+        // 교차점에 멈춘 경우
         if (piece.getPosition() != null && piece.getPosition().isIntersection() && piece.getPosition().getShortcut() != null) {
             piece.setJustStoppedAtIntersection(true);
         } else {
             piece.setJustStoppedAtIntersection(false);
         }
 
-        boolean captured = board.movePiece(piece, result.getStepCount(), null);
-        return captured || result.grantsExtraThrow();
+        // 보드에서 이동 처리 및 캡처 여부 반환
+        return board.movePiece(piece, result.getStepCount(), null);
     }
 
     public boolean isCurrentPlayerWin() {
