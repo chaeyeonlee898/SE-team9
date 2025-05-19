@@ -1,0 +1,141 @@
+package controller;
+
+import model.Game;
+import model.Piece;
+import model.YutResult;
+import view.swing.DialogUtils;
+import view.swing.GameFrame;
+import view.swing.GamePanel;
+
+import javax.swing.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
+/**
+ * GameController는 뷰로부터 입력을 받아 모델(Game)을 호출하고,
+ * 화면(GamePanel, 라벨 등)을 갱신하는 역할만 담당합니다.
+ */
+public class SwingGameController {
+    private final Game game;
+    private final GamePanel gamePanel;
+    private final JLabel turnLabel;
+    private final JTextArea logArea;
+    private final GameFrame gameFrame;
+    private final JLabel statusLabel;
+    private final Random rand = new Random();
+
+    public SwingGameController(
+            Game game,
+            GamePanel gamePanel,
+            JLabel turnLabel,
+            JTextArea logArea,
+            GameFrame gameFrame,
+            JLabel statusLabel
+    ) {
+        this.game = game;
+        this.gamePanel = gamePanel;
+        this.turnLabel = turnLabel;
+        this.logArea = logArea;
+        this.gameFrame = gameFrame;
+        this.statusLabel = statusLabel;
+
+        // 초기 화면 갱신
+        updateTurnLabel();
+        updateStatusLabel();
+        gamePanel.refresh();
+    }
+
+    /**
+     * 윷 던지기 버튼 클릭 시 호출되는 메서드
+     */
+    public void onRoll() {
+        /** 던지기 방식 선택 */
+        boolean randomMode = DialogUtils.askRandomMode();
+
+        List<YutResult> pending = new ArrayList<>();
+        YutResult r;
+        do {
+            if (randomMode) {
+                /** 랜덤 모드 : model 의 throwYut() 을 사용 */
+                r = YutResult.throwYut(rand);
+            } else {
+                /** 수동 모드 : 사용자에게 결과를 직접 선택하도록 요청 */
+                r = DialogUtils.askManualThrow();
+                if (r == null) return;  // 취소 시 즉시 턴 종료
+            }
+            DialogUtils.showThrowResult(r);  // 던진 결과를 팝업에 출력
+            pending.add(r);  // 수집된 결과를 리스트에 추가
+        } while (r.grantsExtraThrow());
+
+        /** 결과 적용 단계 */
+        while (!pending.isEmpty()) {
+            // 사용자가 수집된 결과 중 하나를 선택
+            YutResult sel = DialogUtils.selectYutResult(pending);
+            if (sel == null) break;  // 취소 시 적용 단계 종료
+            pending.remove(sel);
+
+            // 이동할 말을 선택
+            Piece p = DialogUtils.askPieceSelection(
+                    game.getCurrentPlayer().getUnfinishedPieces()
+            );
+            if (p == null) return;  // 취소 시 턴 종료
+
+            // model 계층에 적용 : 말 이동, 캡처 여부 반환
+            boolean captured = game.applyYutResult(sel, p);
+            log(game.getCurrentPlayer().getName() + " → " + sel);
+
+            // view 계층 갱신
+            gamePanel.refresh();
+            updateTurnLabel();
+            updateStatusLabel();
+
+            // 승리 판정
+            if (game.isCurrentPlayerWin()) {
+                if (DialogUtils.confirmRestart(game.getCurrentPlayer().getName())) {
+                    gameFrame.showStartPanel();
+                }
+                return;
+            }
+
+            // 캡처 : 잡았을 때 추가 던지기
+            if (captured) {
+                List<YutResult> bonus = game.rollAllYuts(rand);
+                for (YutResult b : bonus) {
+                    DialogUtils.showThrowResult(b);
+                    pending.add(b);
+                }
+            }
+        }
+        /** 턴 종료 */
+        game.nextTurn();
+        updateTurnLabel();
+        updateStatusLabel();
+    }
+
+
+    /**
+     * 현재 플레이어 정보로 턴 라벨 갱신
+     */
+    private void updateTurnLabel() {
+        String name = game.getCurrentPlayer().getName();
+        turnLabel.setText("현재 플레이어: " + name);
+    }
+
+    /**
+     * 현재 플레이어 정보로 상태 라벨 갱신
+     */
+    private void updateStatusLabel() {
+        long finished = game.getCurrentPlayer().getFinishedPieceCount();
+        long remaining = game.getCurrentPlayer().getRemainingPieceCount();
+        statusLabel.setText("완주: " + finished + " / 남은 말: " + remaining);
+    }
+
+    /**
+     * 로그 출력 및 스크롤 자동 이동
+     */
+    private void log(String message) {
+        logArea.append(message + "\n");
+        logArea.setCaretPosition(logArea.getDocument().getLength());
+    }
+}
