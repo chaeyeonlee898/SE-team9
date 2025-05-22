@@ -147,25 +147,40 @@ public final class FXDialog {
      * @param winnerName 승리한 플레이어 이름
      * @return 재시작 선택 시 true, 아니면 false
      */
+//    public static boolean confirmRestart(String winnerName) {
+//        if (Platform.isFxApplicationThread()) {
+//            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+//            alert.setTitle("게임 종료");
+//            alert.setHeaderText(null);
+//            alert.setContentText(winnerName + " 승리! 게임을 다시 시작할까요?");
+//            Optional<ButtonType> result = alert.showAndWait();
+//            return result.filter(bt -> bt == ButtonType.YES).isPresent();
+//        } else {
+//            final boolean[] answer = new boolean[1];
+//            final CountDownLatch latch = new CountDownLatch(1);
+//            Platform.runLater(() -> {
+//                answer[0] = confirmRestart(winnerName);
+//                latch.countDown();
+//            });
+//            try { latch.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+//            return answer[0];
+//        }
+//    }
+
     public static boolean confirmRestart(String winnerName) {
-        if (Platform.isFxApplicationThread()) {
-            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-            alert.setTitle("게임 종료");
-            alert.setHeaderText(null);
-            alert.setContentText(winnerName + " 승리! 게임을 다시 시작할까요?");
-            Optional<ButtonType> result = alert.showAndWait();
-            return result.filter(bt -> bt == ButtonType.YES).isPresent();
-        } else {
-            final boolean[] answer = new boolean[1];
-            final CountDownLatch latch = new CountDownLatch(1);
-            Platform.runLater(() -> {
-                answer[0] = confirmRestart(winnerName);
-                latch.countDown();
-            });
-            try { latch.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-            return answer[0];
-        }
+        // ① 버튼을 YES/NO 로 직접 지정
+        Alert alert = new Alert(
+                Alert.AlertType.CONFIRMATION,
+                winnerName + " 승리! 게임을 다시 시작할까요?",
+                ButtonType.YES, ButtonType.NO
+        );
+        alert.setTitle("게임 종료");
+        alert.setHeaderText(null);
+
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.filter(bt -> bt == ButtonType.YES).isPresent();
     }
+
 
     /**
      * JavaFX Application Thread에서 안전하게 실행하도록 보장합니다.
