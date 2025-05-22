@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import view.javafx.BoardPane?>
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="controller.FXGameController"
+            stylesheets="@../css/style.css">
+
+    <!-- 상단: 턴·상태·던지기 버튼 -->
+    <top>
+        <HBox spacing="10" alignment="CENTER_LEFT" >
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+            <children>
+                <Label fx:id="turnLabel" text="현재 플레이어:"/>
+                <Label fx:id="statusLabel" text="완주: 0 / 남은 말: 0"/>
+                <Button fx:id="throwButton" text="윷 던지기"/>
+            </children>
+        </HBox>
+    </top>
+
+    <!-- 중앙: 보드 그리는 커스텀 컴포넌트 -->
+    <center>
+        <BoardPane fx:id="boardPane"/>
+    </center>
+
+    <!-- 하단: 로그 -->
+    <bottom>
+        <TextArea fx:id="logArea" prefRowCount="4" editable="false"/>
+    </bottom>
+</BorderPane>
