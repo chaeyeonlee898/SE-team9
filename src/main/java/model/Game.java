@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 public class Game {
     private final List<Player> players;
@@ -108,26 +109,26 @@ public class Game {
         while(true){
             System.out.println("\n적용할 윷 결과를 선택하세요");
 
-        for (int i = 0; i < results.size(); i++) {
-            System.out.println(i + ": " + results.get(i));
-        }
-        System.out.print("번호 입력: ");
+            for (int i = 0; i < results.size(); i++) {
+                System.out.println(i + ": " + results.get(i));
+            }
+            System.out.print("번호 입력: ");
 
-        if (!scanner.hasNextInt()) {
-            scanner.next();
-            System.out.println("숫자를 입력해주세요.");
-            continue;
-        }
+            if (!scanner.hasNextInt()) {
+                scanner.next();
+                System.out.println("숫자를 입력해주세요.");
+                continue;
+            }
 
-        int resIdx = scanner.nextInt();
-        if (resIdx < 0 || resIdx >= results.size()) {
-            System.out.println("잘못된 인덱스입니다. 다시 입력해주세요.");
-            continue;
-        }
+            int resIdx = scanner.nextInt();
+            if (resIdx < 0 || resIdx >= results.size()) {
+                System.out.println("잘못된 인덱스입니다. 다시 입력해주세요.");
+                continue;
+            }
 
-        YutResult selectedRes = results.remove(resIdx);
-        System.out.println("선택한 결과: " + selectedRes);
-        return selectedRes;
+            YutResult selectedRes = results.remove(resIdx);
+            System.out.println("선택한 결과: " + selectedRes);
+            return selectedRes;
         }
     }
 
@@ -208,4 +209,11 @@ public class Game {
     public boolean isCurrentPlayerWin() {
         return getCurrentPlayer().allPiecesFinished();
     }
+
+    public List<Piece> getPieces() {
+        return players.stream()
+                .flatMap(player -> player.getPieces().stream())
+                .collect(Collectors.toList());
+    }
 }
+
