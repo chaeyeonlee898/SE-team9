@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane fx:id="root" xmlns:fx="http://javafx.com/fxml"
+            fx:controller="controller.FXGameController">
+    <!-- 상단: 턴 정보, 던지기 버튼 -->
+    <top>
+        <HBox spacing="10" padding="10">
+            <Label fx:id="turnLabel" text="Player 1's turn"/>
+            <Button fx:id="throwButton" text="윷 던지기"/>
+        </HBox>
+    </top>
+
+    <!-- 중앙: 실제 말과 보드를 그릴 커스텀 Pane -->
+    <center>
+        <view.javafx.BoardPane fx:id="boardPane"/>
+    </center>
+
+    <!-- 하단: 로그 / 상태 표시 -->
+    <bottom>
+        <TextArea fx:id="logArea" prefRowCount="3" editable="false"/>
+    </bottom>
+</BorderPane>
