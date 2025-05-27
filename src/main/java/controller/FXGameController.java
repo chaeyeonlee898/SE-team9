@@ -12,6 +12,7 @@ import javafx.stage.Stage;
 import model.*;
 import view.javafx.BoardPane;
 import view.javafx.FXDialog;
+import view.swing.DialogUtils;
 
 import java.io.IOException;
 import java.net.URL;
@@ -42,6 +43,8 @@ public class FXGameController implements Initializable {
     private YutResult currentYut;
     // 선택 가능한 말 목록
     private List<Piece> candidates;    private final Random random = new Random();
+    // 지정/랜덤 윷 던지기
+    private boolean randomMode;
 
     public void setGame(Game game) {
         this.game = game;
@@ -73,21 +76,10 @@ public class FXGameController implements Initializable {
         // 던지기 대기 리스트 초기화
         yutResults.clear();
         // 모드 선택
-        boolean randomMode = FXDialog.askRandomMode();
+        randomMode = FXDialog.askRandomMode();
 
         // 1) 윷 던지기: 연속 던지기 허용
-        YutResult r;
-        do {
-            if (randomMode) {
-                r = YutResult.throwYut(random);
-            } else {
-                r = FXDialog.askManualThrow();
-                if (r == null) return;
-            }
-            FXDialog.showThrowResult(r);
-            log("던진 결과: " + r);
-            yutResults.add(r);
-        } while (r.grantsExtraThrow());
+        handleBonusThrows(yutResults);
 
         // 2) 적용할 한 판 선택
         if (yutResults.size() == 1) {
@@ -100,20 +92,6 @@ public class FXGameController implements Initializable {
             yutResults.remove(currentYut);
             promptPieceSelection();
         }
-
-//        // 2) 결과 적용 루프 // 이동할 말 선택 - 창 띄우기
-//        while (!yutResults.isEmpty()) {
-//            YutResult selected = (yutResults.size() == 1)
-//                    ? yutResults.get(0)
-//                    : FXDialog.selectYutResult(yutResults);
-//            if (selected == null) break;
-//            yutResults.remove(selected);
-//            log("선택된 결과: " + selected);
-//
-//           List<Piece> candidates = game.getCurrentPlayer().getUnfinishedPieces();
-//            Piece chosen = FXDialog.askPieceSelection(candidates);
-//            if (chosen == null) return;
-
     }
 
     /** BoardPane에서 클릭할 때 호출되는 콜백 */
@@ -167,12 +145,7 @@ public class FXGameController implements Initializable {
 
         // 4) 캡처 보너스
         if (captured) {
-            List<YutResult> bonus = game.rollAllYuts(random);
-            for (YutResult b : bonus) {
-                FXDialog.showThrowResult(b);
-                log("보너스 던진 결과: " + b);
-                yutResults.add(b);
-            }
+            handleBonusThrows(yutResults);
         }
 
         // 5) 남아 있는 yutResults가 있으면 다시 말 선택
@@ -213,6 +186,21 @@ public class FXGameController implements Initializable {
         statusLabel.setText(
                 "완주: " + finished + " / 남은 말: " + remaining
         );
+    }
+
+    private void handleBonusThrows(List<YutResult> yutResults) {
+        YutResult res;
+        do {
+            if (randomMode) {
+                res = YutResult.throwYut(random);
+            } else {
+                res = FXDialog.askManualThrow();
+                if (res == null) return;  // 사용자가 취소
+            }
+            FXDialog.showThrowResult(res);
+            log("던진 결과: " + res);
+            yutResults.add(res);
+        } while (res.grantsExtraThrow());
     }
 
     private void log(String message) {
