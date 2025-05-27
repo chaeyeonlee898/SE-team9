@@ -5,6 +5,7 @@ import model.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.Point2D;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +17,7 @@ public class GamePanel extends JPanel {
 
     private Game game;
     private final Map<Integer, Point2D.Double> nodePositions;
-
+    private final Map<Player, Image> pawnImages = new HashMap<>();
 
     public GamePanel(Game game) {
         this.game = game;
@@ -28,6 +29,26 @@ public class GamePanel extends JPanel {
             this.nodePositions = defineHexagonPositions();
         } else {
             this.nodePositions = new HashMap<>();
+        }
+        List<String> pawnFiles = List.of(
+                "pawn_red.png",
+                "pawn_blue.png",
+                "pawn_green.png",
+                "pawn_yellow.png"
+        );
+
+        List<Player> players = game.getPlayers();
+        for (int i = 0; i < players.size(); i++) {
+            String fileName = pawnFiles.get(i % pawnFiles.size());
+            URL url = getClass().getResource("/images/" + fileName);
+            if (url != null) {
+                Image raw = Toolkit.getDefaultToolkit().getImage(url);
+                // 한 번만 크기 조정
+                Image pawnImg = raw.getScaledInstance(30, 30, Image.SCALE_SMOOTH);
+                pawnImages.put(players.get(i), pawnImg);
+            } else {
+                System.err.println("이미지를 찾을 수 없습니다: " + fileName);
+            }
         }
         setPreferredSize(new Dimension(800, 600));
     }
@@ -69,9 +90,25 @@ public class GamePanel extends JPanel {
 
             // 말 표시 (플레이어별 색상)
             int offset = 0;
+            // 원들로 말 표시
+//            for (Piece piece : node.getPieces()) {
+//                g2.setColor(getColorForPlayer(piece.getOwner()));
+//                g2.fillOval(x + 5 + offset, y + 5, 10, 10);
+//                offset += 12;
+//            }
             for (Piece piece : node.getPieces()) {
-                g2.setColor(getColorForPlayer(piece.getOwner()));
-                g2.fillOval(x + 5 + offset, y + 5, 10, 10);
+                Image pawnImg = pawnImages.get(piece.getOwner());
+                if (pawnImg != null) {
+                    g2.drawImage(pawnImg,
+                            x + 5 + offset,
+                            y + 5,
+                            30, 30,  // 원하는 크기
+                            this);
+                } else {
+                    // 이미지가 없을 땐 기존 방식으로 fallback
+                    g2.setColor(getColorForPlayer(piece.getOwner()));
+                    g2.fillOval(x + 5 + offset, y + 5, 10, 10);
+                }
                 offset += 12;
             }
         }

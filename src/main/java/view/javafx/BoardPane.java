@@ -7,8 +7,11 @@ import javafx.geometry.Point2D;
 import javafx.scene.shape.Line;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Text;
 import java.net.URL;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import model.*;
@@ -31,18 +34,17 @@ public class BoardPane extends Pane {
 
     private Board currentBoard;
     private List<Piece> currentPieces;
+    private List<Player> players;
+    private final Map<Player, Rectangle> waitingAreas = new HashMap<>();
+    private final Map<Player, List<Point2D>> waitingSlots = new HashMap<>();
+    private Consumer<Piece> pieceClickHandler; // 말 이동시 클릭
 
-    public void drawBoard(Board board, List<Piece> pieces) {
+    public void setOnPieceClick(Consumer<Piece> pieceClickHandler) {
+        this.pieceClickHandler = pieceClickHandler;
+    }
+
+    public void drawBoard(Board board, List<Piece> pieces, List<Player> players) {
         // 보드 타입에 따라 nodePositions 세팅
-        List<Player> owners = pieces.stream()
-                .map(Piece::getOwner)
-                .distinct()
-                .toList();
-        // 2) 팔레트로 색 지정
-        Color[] palette = { Color.RED, Color.BLUE, Color.GREEN, Color.MAGENTA };
-        for (int i = 0; i < owners.size(); i++) {
-            playerColor.put(owners.get(i), palette[i % palette.length]);
-        }
         if (board instanceof SquareBoard) {
             nodePositions = defineSquarePositions();
         } else if (board instanceof PentagonBoard) {
@@ -52,16 +54,93 @@ public class BoardPane extends Pane {
         }
         this.currentBoard = board;
         this.currentPieces = pieces;
+        this.players = players;
+
+        Color[] palette = { Color.RED, Color.BLUE, Color.GREEN, Color.YELLOW };
+        for (int i = 0; i < players.size(); i++) {
+            playerColor.put(players.get(i), palette[i % palette.length]);
+        }
+
+        initWaitingArea();
         redraw();
     }
+
+    private void initWaitingArea() {
+        waitingAreas.clear();
+        waitingSlots.clear();
+        if (players == null) return;
+
+        double w      = getWidth();
+        double h      = getHeight();
+        double margin = 20;
+        double areaH  = 50;              // 대기 공간 높이
+        double areaY  = h - areaH - margin;
+        double colW   = (w - 2*margin) / players.size();
+
+        for (int i = 0; i < players.size(); i++) {
+            Player p = players.get(i);
+            double x = margin + i*colW;
+
+            // ── 테두리 박스
+            Rectangle rect = new Rectangle(x, areaY, colW - margin, areaH);
+            rect.setFill(Color.TRANSPARENT);
+            rect.setStroke(Color.GRAY);
+            waitingAreas.put(p, rect);
+
+            // ── 슬롯 좌표
+            long count = currentPieces.stream()
+                    .filter(pc -> pc.getOwner().equals(p)
+                    && pc.getPosition() == null
+                    && !pc.isFinished())
+                    .count();   // 플레이어당 전체 말 개수
+            double gap = (rect.getWidth()) / (count + 1);
+            List<Point2D> slots = new ArrayList<>();
+            for (int j = 0; j < count; j++) {
+                double sx = x + gap*(j+1);
+                double sy = areaY + areaH/2;
+                slots.add(new Point2D(sx, sy));
+            }
+            waitingSlots.put(p, slots);
+        }
+    }
+
 
     private void redraw() {
         getChildren().clear();
         if (currentBoard == null) return;
 
+        initWaitingArea();
+
+        // ── 1) 대기 공간 박스
+        waitingAreas.forEach((p, r) -> getChildren().add(r));
+
+        // ── 2) 출발 전 말
+        for (Player p : players) {
+            List<Point2D> slots = waitingSlots.get(p);
+            List<Piece> waiting = currentPieces.stream()
+                    .filter(pc -> pc.getOwner().equals(p) && pc.getPosition() == null && !pc.isFinished())
+                    .toList();
+            for (int k = 0; k < waiting.size() && k < slots.size(); k++) {
+                Piece piece = waiting.get(k);
+                Point2D pt  = slots.get(k);
+
+                // ↓ ImageView 사용
+                ImageView iv = new ImageView(getPawnImage(playerColor.get(p)));
+                iv.setPreserveRatio(true);
+                iv.setFitWidth(30);
+                iv.setFitHeight(30);
+                iv.setX(pt.getX() - iv.getFitWidth()/2);
+                iv.setY(pt.getY() - iv.getFitHeight()/2);
+                getChildren().add(iv);
+                iv.setOnMouseClicked(e -> {
+                    if (pieceClickHandler != null) pieceClickHandler.accept(piece);
+                });
+            }
+        }
+
         double w = getWidth(), h = getHeight();
         double scale = Math.min(w, h) / 25.0;      // Swing의 scale 값(예: 25)을 기반으로 조정
-        double offsetX = (w - scale*25)/2 + 70, offsetY = (h - scale*25)/2 + 50;
+        double offsetX = (w - scale*25)/2 + 70, offsetY = (h - scale*25)/2 + 30;
 
         // 1) 연결선 그리기
         String type = currentBoard.getClass().getSimpleName();
@@ -149,6 +228,9 @@ public class BoardPane extends Pane {
                 iv.setX(x - iv.getFitWidth()/2);
                 iv.setY(y - iv.getFitHeight()/2);
                 getChildren().add(iv);
+                iv.setOnMouseClicked(e -> {
+                    if (pieceClickHandler != null) pieceClickHandler.accept(piece);
+                });
             }
         }
     }
@@ -249,7 +331,6 @@ public class BoardPane extends Pane {
         map.put(15, new Point2D(0, 20)); map.put(16, new Point2D(4, 20));
         map.put(17, new Point2D(8, 20)); map.put(18, new Point2D(12, 20));
         map.put(19, new Point2D(16, 20)); map.put(0, new Point2D(20, 20));
-        map.put(-1, new Point2D(17, 17));
         return map;
     }
 
@@ -294,7 +375,6 @@ public class BoardPane extends Pane {
         map.put(33, new Point2D(11.5, 13.0));
         map.put(34, new Point2D(13.0, 16.0));
         map.put(35, new Point2D(10.0, 10.5)); // 중심
-        map.put(-1, new Point2D(12, 9.5));
         return map;
     }
 
@@ -321,7 +401,7 @@ public class BoardPane extends Pane {
         map.put(36, new Point2D(3, 10)); map.put(37, new Point2D(6.5, 10));
         map.put(38, new Point2D(8.3, 13)); map.put(39, new Point2D(6.7, 16.5));
         map.put(40, new Point2D(11.7, 13)); map.put(41, new Point2D(13.3, 16.5));
-        map.put(42, new Point2D(10, 10)); map.put(-1, new Point2D(10, 14));
+        map.put(42, new Point2D(10, 10));
         return map;
     }
 }
