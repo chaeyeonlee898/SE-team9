@@ -3,6 +3,7 @@ package controller;
 import model.Game;
 import model.Piece;
 import model.YutResult;
+import view.javafx.FXDialog;
 import view.swing.DialogUtils;
 import view.swing.GameFrame;
 import view.swing.GamePanel;
@@ -24,6 +25,7 @@ public class SwingGameController {
     private final GameFrame gameFrame;
     private final JLabel statusLabel;
     private final Random rand = new Random();
+    private boolean randomMode;
 
     public SwingGameController(
             Game game,
@@ -51,22 +53,10 @@ public class SwingGameController {
      */
     public void onRoll() {
         /** 던지기 방식 선택 */
-        boolean randomMode = DialogUtils.askRandomMode();
+        randomMode = DialogUtils.askRandomMode();
 
         List<YutResult> pending = new ArrayList<>();
-        YutResult r;
-        do {
-            if (randomMode) {
-                /** 랜덤 모드 : model 의 throwYut() 을 사용 */
-                r = YutResult.throwYut(rand);
-            } else {
-                /** 수동 모드 : 사용자에게 결과를 직접 선택하도록 요청 */
-                r = DialogUtils.askManualThrow();
-                if (r == null) return;  // 취소 시 즉시 턴 종료
-            }
-            DialogUtils.showThrowResult(r);  // 던진 결과를 팝업에 출력
-            pending.add(r);  // 수집된 결과를 리스트에 추가
-        } while (r.grantsExtraThrow());
+        handleBonusThrows(pending);
 
         /** 결과 적용 단계 */
         while (!pending.isEmpty()) {
@@ -100,11 +90,7 @@ public class SwingGameController {
 
             // 캡처 : 잡았을 때 추가 던지기
             if (captured) {
-                List<YutResult> bonus = game.rollAllYuts(rand);
-                for (YutResult b : bonus) {
-                    DialogUtils.showThrowResult(b);
-                    pending.add(b);
-                }
+                handleBonusThrows(pending);
             }
         }
         /** 턴 종료 */
@@ -129,6 +115,24 @@ public class SwingGameController {
         long finished = game.getCurrentPlayer().getFinishedPieceCount();
         long remaining = game.getCurrentPlayer().getRemainingPieceCount();
         statusLabel.setText("완주: " + finished + " / 남은 말: " + remaining);
+    }
+
+    /**
+     * 추가 윷 던지기 실행 함수
+     */
+    private void handleBonusThrows(List<YutResult> pending) {
+        YutResult res;
+        do {
+            if (randomMode) {
+                res = YutResult.throwYut(rand);
+            } else {
+                res = DialogUtils.askManualThrow();
+                if (res == null) return;  // 사용자가 취소
+            }
+            DialogUtils.showThrowResult(res);
+            log("던진 결과: " + res);
+            pending.add(res);
+        } while (res.grantsExtraThrow());
     }
 
     /**
