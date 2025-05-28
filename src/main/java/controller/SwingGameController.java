@@ -25,7 +25,14 @@ public class SwingGameController {
     private final GameFrame gameFrame;
     private final JLabel statusLabel;
     private final Random rand = new Random();
-    private boolean randomMode;
+
+    private List<YutResult> pendingResults;
+
+    // 지금 클릭으로 골라야 할 윷 결과
+    private YutResult currentResult;
+
+    // 지금 말 선택 대기 모드인지 표시
+    private boolean awaitingPieceSelection = false;
 
     public SwingGameController(
             Game game,
@@ -42,6 +49,9 @@ public class SwingGameController {
         this.gameFrame = gameFrame;
         this.statusLabel = statusLabel;
 
+        // 클릭으로 말을 선택했을 때 onPieceClicked을 호출하도록 연결
+        gamePanel.setPieceClickListener(this::onPieceClicked);
+
         // 초기 화면 갱신
         updateTurnLabel();
         updateStatusLabel();
@@ -52,51 +62,13 @@ public class SwingGameController {
      * 윷 던지기 버튼 클릭 시 호출되는 메서드
      */
     public void onRoll() {
-        /** 던지기 방식 선택 */
-        randomMode = DialogUtils.askRandomMode();
+//        /** 던지기 방식 선택 */
+        // 1) 윷 던지고 pendingResults 채우기
+        pendingResults = new ArrayList<>();
+        handleBonusThrows(pendingResults);
 
-        List<YutResult> pending = new ArrayList<>();
-        handleBonusThrows(pending);
-
-        /** 결과 적용 단계 */
-        while (!pending.isEmpty()) {
-            // 사용자가 수집된 결과 중 하나를 선택
-            YutResult sel = DialogUtils.selectYutResult(pending);
-            if (sel == null) break;  // 취소 시 적용 단계 종료
-            pending.remove(sel);
-
-            // 이동할 말을 선택
-            Piece p = DialogUtils.askPieceSelection(
-                    game.getCurrentPlayer().getUnfinishedPieces()
-            );
-            if (p == null) return;  // 취소 시 턴 종료
-
-            // model 계층에 적용 : 말 이동, 캡처 여부 반환
-            boolean captured = game.applyYutResult(sel, p);
-            log(game.getCurrentPlayer().getName() + " → " + sel);
-
-            // view 계층 갱신
-            gamePanel.refresh();
-            updateTurnLabel();
-            updateStatusLabel();
-
-            // 승리 판정
-            if (game.isCurrentPlayerWin()) {
-                if (DialogUtils.confirmRestart(game.getCurrentPlayer().getName())) {
-                    gameFrame.showStartPanel();
-                }
-                return;
-            }
-
-            // 캡처 : 잡았을 때 추가 던지기
-            if (captured) {
-                handleBonusThrows(pending);
-            }
-        }
-        /** 턴 종료 */
-        game.nextTurn();
-        updateTurnLabel();
-        updateStatusLabel();
+        // 2) 첫 번째 윷 결과 선택 단계로 넘어가기
+        selectNextYutResult();
     }
 
 
@@ -106,6 +78,9 @@ public class SwingGameController {
     private void updateTurnLabel() {
         String name = game.getCurrentPlayer().getName();
         turnLabel.setText("현재 플레이어: " + name);
+
+        gamePanel.highlightCurrentPlayer(game.getCurrentPlayer());
+
     }
 
     /**
@@ -123,11 +98,14 @@ public class SwingGameController {
     private void handleBonusThrows(List<YutResult> pending) {
         YutResult res;
         do {
-            if (randomMode) {
+            // 매번 모드 선택
+            boolean isRandom = DialogUtils.askRandomMode();
+
+            if (isRandom) {
                 res = YutResult.throwYut(rand);
             } else {
                 res = DialogUtils.askManualThrow();
-                if (res == null) return;  // 사용자가 취소
+                if (res == null) return;  // 수동 입력 취소 시 종료
             }
             DialogUtils.showThrowResult(res);
             log("던진 결과: " + res);
@@ -142,4 +120,75 @@ public class SwingGameController {
         logArea.append(message + "\n");
         logArea.setCaretPosition(logArea.getDocument().getLength());
     }
+    /**
+     * 남은 pendingResults 중 하나를 선택하도록 유도.
+     * 대화상자 대신 마우스 클릭으로 말 선택 대기 상태로 전환.
+     */
+    private void selectNextYutResult() {
+        if (pendingResults.isEmpty()) {
+            // 더 이상 처리할 윷 결과가 없으면 턴 종료
+            endTurn();
+            return;
+        }
+        // 기존 대화상자 선택은 그대로 유지해도 되고,
+        // DialogUtils.selectYutResult 대신 첫 결과를 꺼내도 됩니다:
+        currentResult = DialogUtils.selectYutResult(pendingResults);
+        if (currentResult == null) {
+            endTurn();
+            return;
+        }
+        // 이제 “말 클릭”을 대기 상태로 전환
+        awaitingPieceSelection = true;
+        // (원하면 statusLabel 에 "말을 클릭하세요" 같은 메시지 표시)
+        statusLabel.setText("말을 클릭하세요: " + currentResult);
+    }
+
+    /**
+     * GamePanel 쪽에서 말이 클릭되면 여기로 콜백됩니다.
+     */
+    public void onPieceClicked(Piece piece) {
+        if (!awaitingPieceSelection) return;                 // 대기 중 아니면 무시
+        if (!game.getCurrentPlayer().getUnfinishedPieces().contains(piece)) {
+            // 내 차례가 아닌 말이거나 이미 완주한 말이면 무시
+            return;
+        }
+
+        // 선택 처리
+        awaitingPieceSelection = false;
+        pendingResults.remove(currentResult);
+
+        boolean captured = game.applyYutResult(currentResult, piece);
+        log(game.getCurrentPlayer().getName() + " → " + currentResult);
+
+        // 뷰 갱신
+        gamePanel.refresh();
+        updateTurnLabel();
+        updateStatusLabel();
+
+        // 승리 체크
+        if (game.isCurrentPlayerWin()) {
+            if (DialogUtils.confirmRestart(game.getCurrentPlayer().getName())) {
+                gameFrame.showStartPanel();
+            }
+            return;
+        }
+
+        // 캡처 시 추가 던지기
+        if (captured) {
+            handleBonusThrows(pendingResults);
+        }
+        // 다음 윷 결과 또는 턴 종료
+        selectNextYutResult();
+    }
+
+    /** 턴 종료 후 상태 업데이트 */
+    private void endTurn() {
+        pendingResults = null;
+        currentResult = null;
+        game.nextTurn();
+        updateTurnLabel();
+        updateStatusLabel();
+        gamePanel.refresh();
+    }
+
 }
