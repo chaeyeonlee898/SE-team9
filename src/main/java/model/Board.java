@@ -29,19 +29,19 @@ public abstract class Board {
         // 2. 빽도 처리
         if (steps == BACKDO) return handleBackdo(piece, src);
 
-        // 3. “start에서 positive step” 완주 처리
+        // 3. 업(스택) 기능
+        List<Piece> stack = collectStack(first, piece, src);
+
+        // 4. “start에서 positive step” 완주 처리
         if (isFinishedPath(first, src, piece, steps)) {
-            finishPieces(piece);
+            finishPieces(stack);
             return false;
         }
 
-        // 4. 경로 설정
+        // 5. 경로 설정
         List<BoardNode> path = calculatePath(src, steps);
         BoardNode dest = path.get(path.size() - 1);
         piece.justStoppedAtIntersection = dest.isIntersection && dest.shortcut!=null;
-
-        // 5. 업(스택) 기능
-        List<Piece> stack = collectStack(first, piece, src);
 
 
         // 6. 완주 처리: start를 한 칸 이상 지나쳐야 완주로 간주
@@ -181,12 +181,6 @@ public abstract class Board {
             }
             System.out.println(p.owner.getName() + "의 말이 완주했습니다!");
         }
-    }
-
-    private void finishPieces(Piece piece) {
-        List<Piece> singleton = new ArrayList<>();
-        singleton.add(piece);
-        finishPieces(singleton);
     }
 
 
