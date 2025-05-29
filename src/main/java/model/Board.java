@@ -2,6 +2,7 @@ package model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 /**
  * 추상 보드 클래스: 다양한 다각형 보드에서 말 이동 로직을 공통으로 처리
@@ -16,7 +17,7 @@ public abstract class Board {
     private boolean isFirstEntry(Piece piece){ return piece.position == null;}
     private BoardNode getSourceNode(Piece piece, boolean first){ return first? getStart(): piece.position;}
 
-    public boolean movePiece(Piece piece, int steps) {
+    public boolean movePiece(Piece piece, int steps, Scanner scanner) {
         // 1. 첫 entry 및 업 플래그
         boolean first = isFirstEntry(piece); //처음 입장하는 경우 플래그
         if (first) piece.hasLeftStart=true;
@@ -60,73 +61,78 @@ public abstract class Board {
 
         return captureOccured;
     }
+    
+    public boolean movePiece(Piece piece, int steps) {
+        // 내부적으로 기존 Scanner 버전을 호출
+        return movePiece(piece, steps, new Scanner(System.in));
+    }
 
     private boolean handleBackdo(Piece piece, BoardNode src){
 
-        // a) 아직 보드에 안 올랐으면 불가
-        if (piece.position == null) {
-            System.out.println("아직 보드에 진입하지 않아 빽도 불가.");
-            return false;
-        }
-        System.out.println("[DEBUG] 이전 위치 : " + piece.lastPosition);
-
-        // b) 게임 시작부터 빽도
-        if (piece.position == getStart() && piece.hasLeftStart && piece.moveHistory.size() == 1) {
-            return backdoFromStart(piece);
-        }
-
-        // c) 이동 이력 없으면 백도 불가
-        if (piece.moveHistory.isEmpty()) {
-            System.out.println("이전 위치 정보가 없어 빽도 불가.");
-            return false;
-        }
-
-        // d) 정상적인 한 칸 뒤로 이동
-        if (piece.moveHistory.size() > 1) {
-            piece.moveHistory.pop();
-        }
-        BoardNode prev = piece.moveHistory.peek();
-
-        // 업힌 말들 가져오기
-        List<Piece> stack = new ArrayList<>();
-        for (Piece p : new ArrayList<>(piece.position.pieces)) {
-            if (p.owner == piece.owner) {
-                stack.add(p);
+            // a) 아직 보드에 안 올랐으면 불가
+            if (piece.position == null) {
+                System.out.println("아직 보드에 진입하지 않아 빽도 불가.");
+                return false;
             }
-        }
+            System.out.println("[DEBUG] 이전 위치 : " + piece.lastPosition);
 
-        //현재 위치에서 제거
-        piece.position.pieces.remove(piece);
-
-        // 캡쳐 처리
-        boolean captureByBackdo = handleCapture(piece, prev);
-
-        // 이동
-        for (Piece p : stack) {
-            if (!p.moveHistory.isEmpty()) {
-                p.moveHistory.pop();  // 현재 위치 제거
+            // b) 게임 시작부터 빽도
+            if (piece.position == getStart() && piece.hasLeftStart && piece.moveHistory.size() == 1) {
+                return backdoFromStart(piece);
             }
-            if (p.moveHistory.isEmpty() || p.moveHistory.peek() != prev) {
-                p.moveHistory.push(prev);
-            }
-            // 일반 이동에 들어가기 직전, lastPosition 에 현재 위치 저장
-            // 첫 진입인 경우 start 가 이전 위치
-            p.lastPosition = p.position == null ? getStart() : p.position;
-            // 이전 위치에서 제거
-            if (p.position != null) {
-                p.position.pieces.remove(p);
-            }
-            // 현재 위치 기억
-            //BoardNode current = p.position;
-            prev.pieces.add(p);
-            p.position = prev;
 
-            // 빽도 후에도 intersection 여부 유지
-            p.justStoppedAtIntersection = prev.isIntersection && prev.shortcut != null;
-        }
+            // c) 이동 이력 없으면 백도 불가
+            if (piece.moveHistory.isEmpty()) {
+                System.out.println("이전 위치 정보가 없어 빽도 불가.");
+                return false;
+            }
 
-        System.out.println(piece.owner.getName() + "의 말이 빽도로 " + prev + "로 한 칸 뒤로 이동했습니다.");
-        System.out.println("현재 moveHistory: " + piece.moveHistory);
+            // d) 정상적인 한 칸 뒤로 이동
+            if (piece.moveHistory.size() > 1) {
+                piece.moveHistory.pop();
+            }
+            BoardNode prev = piece.moveHistory.peek();
+
+            // 업힌 말들 가져오기
+            List<Piece> stack = new ArrayList<>();
+            for (Piece p : new ArrayList<>(piece.position.pieces)) {
+                if (p.owner == piece.owner) {
+                    stack.add(p);
+                }
+            }
+
+            //현재 위치에서 제거
+            piece.position.pieces.remove(piece);
+
+            // 캡쳐 처리
+            boolean captureByBackdo = handleCapture(piece, prev);
+
+            // 이동
+            for (Piece p : stack) {
+                if (!p.moveHistory.isEmpty()) {
+                    p.moveHistory.pop();  // 현재 위치 제거
+                }
+                if (p.moveHistory.isEmpty() || p.moveHistory.peek() != prev) {
+                    p.moveHistory.push(prev);
+                }
+                // 일반 이동에 들어가기 직전, lastPosition 에 현재 위치 저장
+                // 첫 진입인 경우 start 가 이전 위치
+                p.lastPosition = p.position == null ? getStart() : p.position;
+                // 이전 위치에서 제거
+                if (p.position != null) {
+                    p.position.pieces.remove(p);
+                }
+                // 현재 위치 기억
+                //BoardNode current = p.position;
+                prev.pieces.add(p);
+                p.position = prev;
+
+                // 빽도 후에도 intersection 여부 유지
+                p.justStoppedAtIntersection = prev.isIntersection && prev.shortcut != null;
+                            }
+
+            System.out.println(piece.owner.getName() + "의 말이 빽도로 " + prev + "로 한 칸 뒤로 이동했습니다.");
+            System.out.println("현재 moveHistory: " + piece.moveHistory);
 
         return captureByBackdo;
     }
@@ -202,7 +208,7 @@ public abstract class Board {
         return captured;
     }
 
-    private List<BoardNode> calculatePath(BoardNode src, int steps){
+    public List<BoardNode> calculatePath(BoardNode src, int steps){
         BoardNode cur = src;
         List<BoardNode> path = new ArrayList<>();
         // 마지막 꼭지점(15, 20, 25) 제외한 모든 outer 교차점에서 중앙길
@@ -274,12 +280,4 @@ public abstract class Board {
     public List<BoardNode> getAllNodes() {
         return nodes;
     }
-
-    public BoardNode getNode(int id) {
-        for (BoardNode node : getAllNodes()) {
-            if (node.getId() == id) return node;
-        }
-        return null;
-    }
-
 }

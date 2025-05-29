@@ -2,7 +2,10 @@ package view.javafx;
 
 import javafx.animation.TranslateTransition;
 import javafx.animation.SequentialTransition;
+import javafx.animation.PathTransition;
+import javafx.animation.PauseTransition;
 import javafx.geometry.Point2D;
+import javafx.geometry.Bounds;
 import javafx.scene.layout.Pane;
 import javafx.scene.shape.Circle;
 import javafx.scene.paint.Color;
@@ -12,6 +15,9 @@ import javafx.scene.image.ImageView;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Text;
 import javafx.scene.effect.Glow;
+import javafx.scene.shape.MoveTo;
+import javafx.scene.shape.LineTo;
+import javafx.scene.shape.Path;
 import javafx.util.Duration;
 
 import model.Board;
@@ -41,6 +47,7 @@ public class BoardPane extends Pane {
 
     private final Map<Player, Rectangle> waitingAreas = new HashMap<>();
     private final Map<Player, List<Point2D>> waitingSlots = new HashMap<>();
+    private final Map<Piece, ImageView> pieceViewMap = new HashMap<>();
 
     // 각 Piece에 대응하는 ImageView 보관용
     private final Map<Piece, ImageView> pieceNodes = new HashMap<>();
@@ -142,7 +149,7 @@ public class BoardPane extends Pane {
         if (currentBoard == null) return;
         initWaitingArea();
 
-        // draw waiting areas with highlight
+        // ── 1) 대기 공간 박스 (하이라이트 포함)
         waitingAreas.forEach((p, rect) -> {
             if (p.equals(highlightedPlayer)) {
                 rect.setStroke(Color.GOLD);
@@ -156,79 +163,119 @@ public class BoardPane extends Pane {
             getChildren().add(rect);
         });
 
-        // draw waiting pieces
+        double w = getWidth(), h = getHeight();
+        double scale = Math.min(w, h) / 25.0;
+        double ox = (w - scale * 25) / 2 + 70;
+        double oy = (h - scale * 25) / 2 + 30;
+        String type = currentBoard.getClass().getSimpleName();
+
+        // ── 2) 대기 중인 말
         for (Player p : players) {
             List<Piece> waiting = currentPieces.stream()
-                .filter(pc->pc.getOwner().equals(p)&&pc.getPosition()==null&&!pc.isFinished())
+                .filter(pc -> pc.getOwner().equals(p)
+                           && pc.getPosition() == null
+                           && !pc.isFinished())
                 .toList();
             List<Point2D> slots = waitingSlots.get(p);
+
             for (int k = 0; k < waiting.size() && k < slots.size(); k++) {
                 Piece piece = waiting.get(k);
-                ImageView iv = pieceNodes.get(piece);
                 Point2D pt = slots.get(k);
+
+                ImageView iv = pieceNodes.computeIfAbsent(piece, pc -> {
+                    ImageView newIv = new ImageView(getPawnImage(playerColor.get(p)));
+                    newIv.setPreserveRatio(true);
+                    newIv.setFitWidth(30);
+                    newIv.setFitHeight(30);
+                    newIv.setOnMouseClicked(e -> {
+                        if (pieceClickHandler != null) pieceClickHandler.accept(pc);
+                    });
+                    return newIv;
+                });
+
                 if (!getChildren().contains(iv)) getChildren().add(iv);
-                animateNode(iv, pt.getX()-iv.getFitWidth()/2, pt.getY()-iv.getFitHeight()/2);
+                animateNode(iv,
+                    pt.getX() - iv.getFitWidth()/2,
+                    pt.getY() - iv.getFitHeight()/2
+                );
             }
         }
 
-        double w = getWidth(), h = getHeight();
-        double scale = Math.min(w,h)/25.0;
-        double ox = (w-scale*25)/2+70, oy = (h-scale*25)/2+30;
-        String type = currentBoard.getClass().getSimpleName();
-
-        // draw connections
+        // ── 3) 보드 연결선
         boardConnections.getOrDefault(type, Collections.emptyList())
-            .forEach(route-> {
-                for (int i=0;i<route.length-1;i++){
-                    Point2D a=nodePositions.get(route[i]);
-                    Point2D b=nodePositions.get(route[i+1]);
-                    if (a==null||b==null) continue;
-                    Line line = new Line(ox+a.getX()*scale, oy+a.getY()*scale,
-                                          ox+b.getX()*scale, oy+b.getY()*scale);
+            .forEach(route -> {
+                for (int i = 0; i < route.length - 1; i++) {
+                    Point2D a = nodePositions.get(route[i]);
+                    Point2D b = nodePositions.get(route[i+1]);
+                    if (a == null || b == null) continue;
+                    Line line = new Line(
+                        ox + a.getX()*scale, oy + a.getY()*scale,
+                        ox + b.getX()*scale, oy + b.getY()*scale
+                    );
                     line.setStrokeWidth(2);
                     getChildren().add(line);
                 }
             });
 
-        // draw nodes
+        // ── 4) 노드
         Set<Integer> specials = SPECIAL_NODES.getOrDefault(type, Set.of());
         for (BoardNode node : currentBoard.getAllNodes()) {
             Point2D pos = nodePositions.get(node.getId());
-            if (pos==null) continue;
-            double x = ox+pos.getX()*scale, y = oy+pos.getY()*scale;
+            if (pos == null) continue;
+            double x = ox + pos.getX()*scale, y = oy + pos.getY()*scale;
             if (specials.contains(node.getId())) {
-                Circle outer = new Circle(x,y,scale*0.7);
-                outer.setFill(Color.WHITE); outer.setStroke(Color.BLACK); outer.setStrokeWidth(2);
-                Circle inner = new Circle(x,y,scale*0.5);
+                Circle outer = new Circle(x, y, scale * 0.7);
+                outer.setFill(Color.WHITE);
+                outer.setStroke(Color.BLACK);
+                outer.setStrokeWidth(2);
+                Circle inner = new Circle(x, y, scale * 0.5);
                 inner.setFill(Color.DARKGRAY);
                 getChildren().addAll(outer, inner);
             } else {
-                Circle c = new Circle(x,y,scale*0.6);
-                c.setFill(Color.LIGHTGRAY); c.setStroke(Color.BLACK);
+                Circle c = new Circle(x, y, scale * 0.6);
+                c.setFill(Color.LIGHTGRAY);
+                c.setStroke(Color.BLACK);
                 getChildren().add(c);
             }
         }
 
-        // draw moved pieces
+        // ── 5) 보드 위의 말
         Map<BoardNode, List<Piece>> grouped = currentPieces.stream()
-            .filter(pc->!pc.isFinished()&&pc.getPosition()!=null)
+            .filter(pc -> !pc.isFinished() && pc.getPosition() != null)
             .collect(Collectors.groupingBy(Piece::getPosition));
-        grouped.forEach((node,list)->{
+
+        grouped.forEach((node, list) -> {
             Point2D pos = nodePositions.get(node.getId());
-            if (pos==null) return;
-            double cx=ox+pos.getX()*scale, cy=oy+pos.getY()*scale;
-            for(int i=0;i<list.size();i++){
+            if (pos == null) return;
+            double cx = ox + pos.getX()*scale;
+            double cy = oy + pos.getY()*scale;
+
+            for (int i = 0; i < list.size(); i++) {
                 Piece piece = list.get(i);
-                ImageView iv = pieceNodes.get(piece);
-                double off = (i-(list.size()-1)/2.0)*12;
+                double offset = (i - (list.size()-1)/2.0) * 12;
+                double x = cx + offset - /* fitWidth/2 */ 15;
+                double y = cy - /* fitHeight/2 */ 15;
+
+                ImageView iv = pieceNodes.computeIfAbsent(piece, pc -> {
+                    ImageView newIv = new ImageView(getPawnImage(getColorForPlayer(pc.getOwner())));
+                    newIv.setPreserveRatio(true);
+                    newIv.setFitWidth(30);
+                    newIv.setFitHeight(30);
+                    newIv.setOnMouseClicked(e -> {
+                        if (pieceClickHandler != null) pieceClickHandler.accept(pc);
+                    });
+                    return newIv;
+                });
+
                 if (!getChildren().contains(iv)) getChildren().add(iv);
-                animateNode(iv, cx+off-iv.getFitWidth()/2, cy-iv.getFitHeight()/2);
+                animateNode(iv, x, y);
             }
         });
 
-        // ensure pieces on top
+        // ── 6) 말이 위로 오도록
         pieceNodes.values().forEach(iv -> iv.toFront());
     }
+
     
     private void animateNode(ImageView iv, double x, double y) {
         TranslateTransition tt = new TranslateTransition(Duration.seconds(0.3), iv);
@@ -243,39 +290,117 @@ public class BoardPane extends Pane {
         tt.play();
     }
     
-    public void animateFromWaitingTo(int destId,Piece piece,boolean captured,Runnable onFinished) {
-    	 ImageView iv = pieceNodes.get(piece);
-         if (iv == null) return;
+    /** 
+     * 말(p)가 pathNodes 에 적힌 순서대로 움직이는 애니메이션.
+     * 끝나면 onFinished.run() 호출.
+     */
+    public void animateAlongPath(Piece piece, int steps, Runnable onFinished) {
+        // 1) ImageView 꺼내기
+        ImageView iv = pieceNodes.get(piece);
+        if (iv == null || steps <= 0) {
+            onFinished.run();
+            return;
+        }
 
-         // 1) 시작 노드(0번) 좌표 계산
-         Point2D startNode = nodePositions.get(0);
-         double w       = getWidth(), h = getHeight();
-         double scale   = Math.min(w, h) / 25.0;
-         double offsetX = (w - scale*25)/2 + 70;
-         double offsetY = (h - scale*25)/2 + 30;
-         double midX    = offsetX + startNode.getX()*scale - iv.getFitWidth()/2;
-         double midY    = offsetY + startNode.getY()*scale - iv.getFitHeight()/2;
+        // 2) 모델 src 노드와 경로 리스트 구하기
+        BoardNode src = piece.getPosition() == null
+            ? currentBoard.getStart()
+            : piece.getPosition();
+        List<BoardNode> pathNodes = currentBoard.calculatePath(src, steps);
 
-         // 2) 목적지(destId) 좌표 계산
-         Point2D destNode = nodePositions.get(destId);
-         double endX = offsetX + destNode.getX()*scale - iv.getFitWidth()/2;
-         double endY = offsetY + destNode.getY()*scale - iv.getFitHeight()/2;
+        // 3) Path 만들기
+        Path path = new Path();
+        // 3-a) 시작 좌표: 현재 iv 의 센터
+        Bounds b = iv.localToParent(iv.getBoundsInLocal());
+        double startX = b.getMinX() + b.getWidth()/2;
+        double startY = b.getMinY() + b.getHeight()/2;
+        path.getElements().add(new MoveTo(startX, startY));
 
-         // 3) 두 단계 TranslateTransition
-         TranslateTransition toStart = new TranslateTransition(Duration.seconds(0.3), iv);
-         toStart.setToX(midX); toStart.setToY(midY);
+        // 3-b) 각 BoardNode 가리키는 화면 좌표
+        double w = getWidth(), h = getHeight();
+        double scale = Math.min(w, h) / 25.0;
+        double ox = (w - scale*25)/2 + 70;
+        double oy = (h - scale*25)/2 + 30;
 
-         TranslateTransition toDest = new TranslateTransition(Duration.seconds(0.3), iv);
-         toDest.setToX(endX);  toDest.setToY(endY);
+        for (BoardNode bn : pathNodes) {
+            Point2D pos = nodePositions.get(bn.getId());
+            double x = ox + pos.getX()*scale;
+            double y = oy + pos.getY()*scale;
+            path.getElements().add(new LineTo(x, y));
+        }
 
-         // 4) 순차 실행 + 완료 시 redraw() → onFinished.run()
-         SequentialTransition st = new SequentialTransition(iv, toStart, toDest);
-         st.setOnFinished(evt -> {
-             redraw();
-             if (onFinished != null) onFinished.run();
-         });
-         st.play();
-     }
+        // 4) PathTransition 실행
+        PathTransition pt = new PathTransition(
+            Duration.seconds(pathNodes.size() * 0.2),
+            path,
+            iv
+        );
+        pt.setOnFinished(evt -> {
+            // 잠깐 정지 후 콜백
+            PauseTransition pause = new PauseTransition(Duration.seconds(0.1));
+            pause.setOnFinished(e2 -> onFinished.run());
+            pause.play();
+        });
+        pt.play();
+    }
+    /** 대기 슬롯 좌표 얻기 (이전 코드 재사용) */
+    private Point2D findWaitingSlotFor(Piece piece) {
+        Player owner = piece.getOwner();
+        List<Piece> waiting = currentPieces.stream()
+            .filter(pc -> pc.getOwner().equals(owner)
+                       && pc.getPosition()==null
+                       && !pc.isFinished())
+            .toList();
+        int idx = waiting.indexOf(piece);
+        List<Point2D> slots = waitingSlots.get(owner);
+        idx = Math.max(0, Math.min(idx, slots.size()-1));
+        return slots.get(idx);
+    }
+    
+    public void animateFromWaitingTo(int steps,Piece piece,boolean captured,Runnable onFinished) {
+    	 // 1) 시작점: 대기 슬롯 좌표
+        Point2D startPt = findWaitingSlotFor(piece);
+
+        // 2) 경로용 BoardNode 리스트 얻기
+        //    모델 이동은 이미 controller 쪽에서 해 두셨으니,
+        //    다시 calculatePath를 써서 동일 경로를 구합니다.
+        BoardNode srcNode = null; // 대기였다면 START 노드
+        // (대기장이었다면 start 노드, 아니면 piece.getPosition() 직전)
+        srcNode = currentBoard.getStart();
+        List<BoardNode> pathNodes = currentBoard.calculatePath(srcNode, steps);
+
+        // 3) 화면 좌표용 Path 생성
+        double w = getWidth(), h = getHeight();
+        double scale = Math.min(w, h) / 25.0;
+        double offsetX = (w - scale*25)/2 + 70, offsetY = (h - scale*25)/2 + 30;
+
+        Path path = new Path();
+        path.getElements().add(new MoveTo(startPt.getX(), startPt.getY()));
+        for (BoardNode bn : pathNodes) {
+            Point2D pos = nodePositions.get(bn.getId());
+            double x = offsetX + pos.getX()*scale;
+            double y = offsetY + pos.getY()*scale;
+            path.getElements().add(new LineTo(x, y));
+        }
+
+        // 4) ImageView 찾기
+        ImageView iv = pieceViewMap.get(piece);
+        if (iv == null) {
+            // 안전 장치: redraw되지 않았다면 그냥 콜백
+            onFinished.run();
+            return;
+        }
+
+        // 5) PathTransition 생성 & 실행
+        PathTransition pt = new PathTransition(Duration.seconds(steps * 0.2), path, iv);
+        pt.setOnFinished(e -> {
+            // 잠깐 멈춘 뒤에 콜백
+            PauseTransition pause = new PauseTransition(Duration.seconds(0.3));
+            pause.setOnFinished(ev -> onFinished.run());
+            pause.play();
+        });
+        pt.play();
+    }
     
     private Color getColorForPlayer(Player p) {
         return playerColor.getOrDefault(p, Color.GRAY);
