@@ -26,11 +26,12 @@ public class GameFrame extends JFrame {
     private JTextArea logArea;
     private Board board;
     private Game game;
+    private Piece selectedPiece;
 
     public GameFrame() {
         setTitle("윷놀이 게임");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1000, 800);
+        setSize(1200, 800);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
@@ -104,6 +105,11 @@ public class GameFrame extends JFrame {
         getContentPane().removeAll();
 
         gamePanel = new GamePanel(game);
+
+        gamePanel.setPieceClickListener(piece -> {
+            selectedPiece = piece;
+            gamePanel.repaint();
+        });
         turnLabel = new JLabel();
         turnLabel.setFont(new Font("SanaSerif", Font.BOLD, 18));
         turnLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -116,7 +122,7 @@ public class GameFrame extends JFrame {
         logArea = new JTextArea();
         logArea.setEditable(false);
         JScrollPane scrollPane = new JScrollPane(logArea);
-        scrollPane.setPreferredSize(new Dimension(250, 0));
+        scrollPane.setPreferredSize(new Dimension(150, 0));
         add(scrollPane, BorderLayout.EAST);
 
         SwingGameController controller = new SwingGameController(game, gamePanel, turnLabel, logArea, this, statusLabel);

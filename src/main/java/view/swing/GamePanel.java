@@ -4,11 +4,14 @@ import model.*;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.geom.Point2D;
 import java.net.URL;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 
 /**
  * GamePanel은 게임의 보드 및 말 위치를 시각적으로 표시하는 컴포넌트
@@ -18,6 +21,24 @@ public class GamePanel extends JPanel {
     private Game game;
     private final Map<Integer, Point2D.Double> nodePositions;
     private final Map<Player, Image> pawnImages = new HashMap<>();
+    private final Map<Player, Point> waitingPos = new HashMap<>();
+    private final Map<Piece, Rectangle> pieceBounds = new HashMap<>();
+    private final Map<Player, Rectangle> waitingAreas = new HashMap<>();
+    private final Map<Player, List<Point>> waitingSlots = new HashMap<>();
+    private Player highlightedPlayer = null;
+
+    public interface PieceClickedListener {
+        void onPieceClicked(Piece piece);
+    }
+    private PieceClickedListener clickedListener;
+
+    public void setPieceClickListener(PieceClickedListener listener) {
+        this.clickedListener = listener;}
+
+    public void highlightCurrentPlayer(Player p) {
+        this.highlightedPlayer = p;
+        repaint();
+    }
 
     public GamePanel(Game game) {
         this.game = game;
@@ -50,12 +71,34 @@ public class GamePanel extends JPanel {
                 System.err.println("이미지를 찾을 수 없습니다: " + fileName);
             }
         }
-        setPreferredSize(new Dimension(800, 600));
+
+        // 기존 노드 위치 계산…
+        calculateWaitingPositions();
+
+        // 크기 변경될 때마다 다시 계산
+        addComponentListener(new ComponentAdapter() {
+                                 @Override
+                                 public void componentResized(ComponentEvent e) {
+                                     calculateWaitingPositions();
+                                     repaint();
+                                 }
+                             });
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                Piece hit = findClickedPiece(e.getPoint());
+                if (hit != null && clickedListener != null) {
+                    clickedListener.onPieceClicked(hit);
+                }
+            }
+        });
     }
 
     @Override
     protected void paintComponent(Graphics g) {
+        pieceBounds.clear();
         super.paintComponent(g);
+        calculateWaitingPositions();
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
@@ -66,11 +109,27 @@ public class GamePanel extends JPanel {
         // Draw connection routes
         Map<String, List<int[]>> allConnections = defineBoardConnections();
         String boardType = game.getBoard().getClass().getSimpleName();
+        Set<Integer> specials = SPECIAL_NODES.getOrDefault(boardType, Collections.emptySet());
+
         List<int[]> routes = allConnections.get(boardType);
         if (routes != null) {
             for (int[] route : routes) {
                 drawConnection(g2, route, nodePositions, 25, 80, 80);
             }
+        }
+
+        // 1) waitingAreas 먼저 그리기
+        for (var entry : waitingAreas.entrySet()) {
+            Player p = entry.getKey();
+            Rectangle r = entry.getValue();
+            if (p.equals(highlightedPlayer)) {
+                g2.setColor(Color.ORANGE);
+                g2.setStroke(new BasicStroke(3));
+            } else {
+                g2.setColor(Color.GRAY);
+                g2.setStroke(new BasicStroke(1));
+            }
+            g2.draw(r);
         }
 
         for (BoardNode node : nodes) {
@@ -80,13 +139,44 @@ public class GamePanel extends JPanel {
 
             int x = (int) (60 + pos.x * (radius * 2 + padding));
             int y = (int) (60 + pos.y * (radius * 2 + padding));
+            int diameter = radius * 4;
 
             // 노드 표시
-            g2.setColor(Color.LIGHT_GRAY);
-            g2.fillOval(x, y, radius * 4, radius * 4);
+            if (specials.contains(id)) {
+                // 바깥 원 (흰색·검은 테두리 굵게)
+                g2.setColor(Color.WHITE);
+                g2.fillOval(x, y, diameter, diameter);
+                g2.setColor(Color.BLACK);
+                g2.setStroke(new BasicStroke(2));
+                g2.drawOval(x, y, diameter, diameter);
+
+                // 안쪽 원 (작게)
+                int outerRadius = diameter/2;       // radius*2
+                int innerRadius = (int)(outerRadius * 0.7);
+                int cx = x + outerRadius;
+                int cy = y + outerRadius;
+                g2.setColor(Color.LIGHT_GRAY);
+                g2.fillOval(
+                        cx - innerRadius,
+                        cy - innerRadius,
+                        innerRadius*2,
+                        innerRadius*2
+                );
+
+                // 스트로크 두께 원복
+                g2.setStroke(new BasicStroke(1));
+            }
+            else {
+                // 일반 노드
+                g2.setColor(Color.LIGHT_GRAY);
+                g2.fillOval(x, y, diameter, diameter);
+                g2.setColor(Color.BLACK);
+                g2.drawOval(x, y, diameter, diameter);
+            }
+
+            // 노드 이름
             g2.setColor(Color.BLACK);
-            g2.drawOval(x, y, radius * 4, radius * 4);
-            g2.drawString(node.getName(), x + 10, y + radius * 4 + 12);
+            g2.drawString(node.getName(), x + 10, y + diameter + 12);
 
             // 말 표시 (플레이어별 색상)
             int offset = 0;
@@ -99,11 +189,12 @@ public class GamePanel extends JPanel {
             for (Piece piece : node.getPieces()) {
                 Image pawnImg = pawnImages.get(piece.getOwner());
                 if (pawnImg != null) {
-                    g2.drawImage(pawnImg,
-                            x + 5 + offset,
-                            y + 5,
-                            30, 30,  // 원하는 크기
-                            this);
+                    int w = 30, h = 30;
+                    int drawX = x + 5 + offset;
+                    int drawY = y + 5;
+
+                    g2.drawImage(pawnImg, drawX, drawY, w, h, this);
+                    pieceBounds.put(piece, new Rectangle(drawX, drawY, w, h));
                 } else {
                     // 이미지가 없을 땐 기존 방식으로 fallback
                     g2.setColor(getColorForPlayer(piece.getOwner()));
@@ -112,6 +203,42 @@ public class GamePanel extends JPanel {
                 offset += 12;
             }
         }
+        for (Player p : game.getPlayers()) {
+            List<Point> slots = waitingSlots.get(p);
+            int k = 0;
+            for (Piece piece : p.getUnfinishedPieces()) {
+                if (piece.getPosition() != null || piece.isFinished()) continue;
+                Image pawn = pawnImages.get(p);
+                Point pt = slots.get(k++);
+                int w = 30, h = 30;
+                int drawX = pt.x - w/2;
+                int drawY = pt.y - h/2;
+
+                // 1) 이미지 그리기
+                g2.drawImage(pawn, drawX, drawY, w, h, this);
+
+                // 2) 클릭 판정용 사각형 등록
+                pieceBounds.put(piece, new Rectangle(drawX, drawY, w, h));
+            }
+        }
+//        for (Player player : game.getPlayers()) {
+//            Point pos = waitingPos.get(player);
+//            int offset = 0;
+//            // 아직 보드에 올라가지 않은 말만 꺼내기
+//            for (Piece p : player.getUnfinishedPieces()) {
+//                // (모델에 isOnBoard() 같은 게 있으면 그걸 쓰고,
+//                // 없다면 p.getCurrentNode() == null 체크)
+//                if (p.getPosition() != null) continue;
+//                Image pawn = pawnImages.get(player);
+//                int w = 30, h = 30;
+//                int drawX = pos.x + 5 + offset;
+//                int drawY = pos.y + 5;
+//
+//                g2.drawImage(pawn, drawX, drawY, w, h, this);
+//                pieceBounds.put(p, new Rectangle(drawX, drawY, w, h));
+//                offset += 35;
+//            }
+//        }
     }
 
     private void drawConnection(Graphics2D g2, int[] nodeIds, Map<Integer, Point2D.Double> posMap, int scale, int offsetX, int offsetY) {
@@ -130,6 +257,54 @@ public class GamePanel extends JPanel {
             g2.drawLine(x1, y1, x2, y2);
         }
     }
+
+    /** 플레이어별 '대기 영역' 좌표 계산 */
+    private void calculateWaitingPositions() {
+        waitingPos.clear();
+        waitingAreas.clear();
+        waitingSlots.clear();
+        int margin = 20;
+        int areaH = 30; // 말 그릴 y 좌표
+        int areaY = getHeight() - areaH - margin;
+        int spacing = 40;
+        int cols = game.getPlayers().size();
+        int colW = (getWidth() - 2 * margin) / cols;
+
+        int x = margin;
+
+        for (Player p : game.getPlayers()) {
+            // 1) 이 플레이어의 대기 말 개수
+            long count = p.getUnfinishedPieces().stream()
+                    .filter(pc -> pc.getPosition() == null && !pc.isFinished())
+                    .count();
+
+            // 2) 영역 폭 = (말 개수 × spacing), 단 말이 하나도 없으면 최소 spacing 확보
+            int rectW = (int)(count > 0 ? count * spacing : spacing);
+
+            // 3) 영역 사각형 저장
+            Rectangle area = new Rectangle(x, areaY - 5, rectW, areaH + 10);
+            waitingAreas.put(p, area);
+
+            // 4) 각 말의 슬롯 위치 계산
+            List<Point> slots = new ArrayList<>();
+            double gap = (double)rectW / (count + 1);
+            for (int j = 0; j < count; j++) {
+                int sx = (int)(x + gap * (j + 1));
+                int sy = areaY + areaH / 2;
+                slots.add(new Point(sx, sy));
+            }
+            waitingSlots.put(p, slots);
+
+            // 5) 다음 플레이어 영역의 x 시작점
+            x += rectW + margin;
+        }
+    }
+
+    private static final Map<String, Set<Integer>> SPECIAL_NODES = Map.of(
+            "SquareBoard", Set.of(0, 5, 10, 15, 28),
+            "PentagonBoard", Set.of(0, 5, 10, 15, 20, 35),
+            "HexagonBoard", Set.of(0, 5, 10, 15, 20, 25, 42)
+    );
 
     private Map<String, List<int[]>> defineBoardConnections() {
         Map<String, List<int[]>> connections = new HashMap<>();
@@ -280,4 +455,15 @@ public class GamePanel extends JPanel {
     public void refresh() {
         repaint();
     }
+
+    private Piece findClickedPiece(Point click) {
+        for (var entry : pieceBounds.entrySet()) {
+            Rectangle r = entry.getValue();
+            if (r.contains(click)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
 }
