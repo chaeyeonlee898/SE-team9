@@ -36,3 +36,11 @@ build/
 
 ### Mac OS ###
 .DS_Store
+# Ignore Gradle project-specific cache directory
+# Ignore Gradle build output directory
+.gradle
+build
+out/
+bin/
+.idea/
+*.log
