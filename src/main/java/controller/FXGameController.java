@@ -1,38 +1,29 @@
 package controller;
 
+
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
-import javafx.animation.TranslateTransition;
-import javafx.animation.RotateTransition;
-import javafx.animation.ParallelTransition;
-import javafx.animation.Timeline;
-import javafx.animation.KeyFrame;
-import javafx.animation.PauseTransition;
+import javafx.animation.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.VBox; 
+import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
-import javafx.scene.control.ListView;
-import javafx.scene.text.Text;
-import javafx.scene.text.TextFlow;
-import javafx.scene.paint.Color;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.util.Duration;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.stage.Stage;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.util.Duration;
 import model.*;
 import view.javafx.BoardPane;
 import view.javafx.FXDialog;
-import java.io.IOException;
 
+import java.io.IOException;
 import java.net.URL;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class FXGameController implements Initializable {
 
@@ -255,20 +246,6 @@ public class FXGameController implements Initializable {
         });
     }
 
-
-    /**
-     * yutResults에서 currentYut을 다시 골라
-     * promptPieceSelection() 단계로 넘어갑니다.
-     */
-    private void proceedToNextYut() {
-        if (yutResults.size() > 1) {
-            currentYut = FXDialog.selectYutResult(yutResults);
-        } else {
-            currentYut = yutResults.get(0);
-        }
-        promptPieceSelection();
-    }
-
     private void promptPieceSelection() {
         candidates = game.getCurrentPlayer().getUnfinishedPieces();
         state = State.SELECTING_PIECE;
@@ -326,22 +303,6 @@ public class FXGameController implements Initializable {
             currentYut = yutResults.get(0);
         }
         updateYutDisplay();   // 이 시점에만 currentYut 강조
-        promptPieceSelection();
-    }
-
-
-    /** yutResults에서 하나를 최종 선택하고 말 선택 단계로 */
-    private void finalizeRolls() {
-        if (yutResults.size() > 1) {
-            YutResult sel = FXDialog.selectYutResult(yutResults);
-            if (sel == null) return;
-            currentYut = sel;
-            yutResults.remove(sel);
-        } else {
-            currentYut = yutResults.get(0);
-            yutResults.remove(0);
-        }
-        updateYutDisplay();   // ← 반드시 여기서 갱신
         promptPieceSelection();
     }
 
@@ -407,36 +368,6 @@ public class FXGameController implements Initializable {
             pause.play();
         });
         toss.play();
-    }
-
-    /** 짧은 Timeline으로 이미지 빠르게 교체 후, 마지막에 실제 결과 이미지로 고정 */
-    private void flipToResult(ImageView iv, YutResult result, Runnable onFinished) {
-        List<Image> frames = List.copyOf(resultImages.values());
-        double frameDuration = 0.1;  // 0.1초마다 교체
-        Timeline flip = new Timeline();
-        int cycles = 10;  // 총 10프레임(1초)
-        for (int i = 0; i < cycles; i++) {
-            Image frameImg = frames.get(i % frames.size());
-            flip.getKeyFrames().add(new KeyFrame(
-                Duration.seconds(i * frameDuration),
-                evt -> iv.setImage(frameImg)
-            ));
-        }
-        // 마지막 프레임에서 실제 결과 이미지로 고정
-        flip.getKeyFrames().add(new KeyFrame(
-            Duration.seconds(cycles * frameDuration),
-            evt -> {
-                iv.setImage(resultImages.get(result));
-                // 약간의 지연 후에 지우고 다음 로직
-                PauseTransition pause = new PauseTransition(Duration.seconds(0.5));
-                pause.setOnFinished(ev2 -> {
-                    boardPane.getChildren().remove(iv);
-                    onFinished.run();
-                });
-                pause.play();
-            }
-        ));
-        flip.play();
     }
    
 

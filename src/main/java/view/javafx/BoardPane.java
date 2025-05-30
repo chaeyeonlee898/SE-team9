@@ -1,7 +1,6 @@
 package view.javafx;
 
 import javafx.animation.TranslateTransition;
-import javafx.animation.SequentialTransition;
 import javafx.animation.ParallelTransition;
 import javafx.animation.PathTransition;
 import javafx.animation.PauseTransition;
@@ -14,7 +13,6 @@ import javafx.scene.shape.Line;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.shape.Rectangle;
-import javafx.scene.text.Text;
 import javafx.scene.effect.Glow;
 import javafx.scene.shape.MoveTo;
 import javafx.scene.shape.LineTo;
@@ -284,13 +282,6 @@ public class BoardPane extends Pane {
         tt.play();
     }
 
-    private void animate(ImageView iv, double x, double y) {
-        TranslateTransition tt = new TranslateTransition(Duration.seconds(0.3), iv);
-        tt.setToX(x);
-        tt.setToY(y);
-        tt.play();
-    }
-    
     /** 
      * 말(p)가 pathNodes 에 적힌 순서대로 움직이는 애니메이션.
      * 끝나면 onFinished.run() 호출.
