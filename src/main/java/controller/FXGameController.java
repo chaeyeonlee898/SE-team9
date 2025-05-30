@@ -2,6 +2,7 @@ package controller;
 
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.animation.TranslateTransition;
 import javafx.animation.RotateTransition;
@@ -17,6 +18,8 @@ import javafx.scene.control.ListView;
 import javafx.scene.text.Text;
 import javafx.scene.text.TextFlow;
 import javafx.scene.paint.Color;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.util.Duration;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -25,6 +28,7 @@ import javafx.stage.Stage;
 import model.*;
 import view.javafx.BoardPane;
 import view.javafx.FXDialog;
+import java.io.IOException;
 
 import java.net.URL;
 import java.util.*;
@@ -110,12 +114,12 @@ public class FXGameController implements Initializable {
         if (randomMode) {
             // 랜덤 모드: 즉시 결과 생성 + 애니메이션 → 콜백
             YutResult r = YutResult.throwYut(random);
-            playYutAnimation(r, () -> handleSingleThrow(r, true));
+            playYutAnimation(r, () -> handleSingleThrow(r));
         } else {
             // 지정 모드: 다이얼로그로 결과 선택 → 애니메이션 → 콜백
             YutResult r = FXDialog.askManualThrow();
             if (r == null) return;
-            playYutAnimation(r, () -> handleSingleThrow(r, false));
+            playYutAnimation(r, () -> handleSingleThrow(r));
         }
     }
 
@@ -127,17 +131,19 @@ public class FXGameController implements Initializable {
 
         state = State.APPLYING_MOVE;
 
-        // 몇 칸 이동할지
+        // **①** 클릭 전 위치(oldPos) 저장 (null이면 대기장)
+        BoardNode oldPos = p.getPosition();
         int steps = stepsOf(currentYut);
 
-        // 애니메이션 → 끝나면 모델에 반영 + 화면 갱신 + 후처리
-        boardPane.animateAlongPath(p, steps, () -> {
+        // **②** 애니메이션만 실행 (모델 적용은 끝난 뒤 onFinished 에서)
+        boardPane.animateAlongPath(p, oldPos, steps, () -> {
             boolean captured = game.applyYutResult(currentYut, p);
             log(game.getCurrentPlayer().getName() + " 이동: " + currentYut);
             boardPane.redraw();
             handleAfterMove(captured);
         });
     }
+
 
 
     /**
@@ -159,8 +165,7 @@ public class FXGameController implements Initializable {
             // (2) 캡처 보너스가 있으면 보너스 던지기 체인으로 분기
             if (captured) {
                 // 여기서 바로 askRandomMode 하면 에러 → runLater 안으로 들어왔으니 안전
-                boolean randomMode = FXDialog.askRandomMode();
-                bonusThrowChain(randomMode, new ArrayList<>());
+                bonusThrowChain(new ArrayList<>());
                 return;
             }
 
@@ -170,34 +175,64 @@ public class FXGameController implements Initializable {
                 return;
             }
 
-            // (4) 승리 판정
             if (game.isCurrentPlayerWin()) {
+                // 다이얼로그로 묻기
                 boolean again = FXDialog.confirmRestart(game.getCurrentPlayer().getName());
-                if (again) initGame();
-                else throwButton.setDisable(true);
+
+                // 현재 Window(Stage) 참조
+                Stage stage = (Stage) throwButton.getScene().getWindow();
+
+                if (again) {
+                    // 1) StartPane.fxml 로드
+                    try {
+                        FXMLLoader loader = new FXMLLoader(
+                            getClass().getResource("/fxml/StartPane.fxml")
+                        );
+                        Parent startRoot = loader.load();
+
+                        // 2) 컨트롤러에 Stage 주입
+                        FXStartController startCtrl = loader.getController();
+                        startCtrl.setPrimaryStage(stage);
+
+                        // 3) 씬 교체
+                        Scene startScene = new Scene(startRoot, 600, 400);
+                        stage.setScene(startScene);
+
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                        // 혹은 에러 표시
+                    }
+                } else {
+                    // “아니요” → 애플리케이션 종료
+                    Platform.exit();
+                }
                 return;
             }
 
-            // (5) 턴 종료
+            // ④ 턴 종료
             game.nextTurn();
             updateTurnLabel();
             updateStatusLabel();
             boardPane.highlightCurrentPlayer(game.getCurrentPlayer());
             throwButton.setDisable(false);
             state = State.IDLE;
+        
         });
     }
 
     /**
-     * 보너스 윷 던질 때마다 playYutAnimation → 결과 수집 → grantsExtraThrow 검사 → 재귀
-     * 마지막에 selectAndPromptNextYut() 호출
+     * 캡처 보너스 던지기 로직. grantsExtraThrow 때마다
+     * 지정/랜덤을 새로 물어보도록 변경.
      */
-    private void bonusThrowChain(boolean randomMode, List<YutResult> collected) {
-        YutResult br = randomMode
+    private void bonusThrowChain(List<YutResult> collected) {
+        // ★ 여기서도 mode를 매번 물어봄
+        boolean nextRandom = FXDialog.askRandomMode();
+        YutResult br = nextRandom
             ? YutResult.throwYut(random)
-            : FXDialog.askManualThrow();    // runLater 로 들어왔으니 안전
+            : FXDialog.askManualThrow();
+
         if (br == null) {
-            // 취소 시
+            // 수동 모드에서 취소한 경우, 지금까지 모은 것들만 남기고 다음 단계
             yutResults.addAll(collected);
             updateYutDisplay();
             selectAndPromptNextYut();
@@ -205,12 +240,12 @@ public class FXGameController implements Initializable {
         }
 
         playYutAnimation(br, () -> {
-            // 애니메이션 끝난 다음 프레임
             Platform.runLater(() -> {
                 collected.add(br);
                 log("보너스 던진 결과: " + br);
                 if (br.grantsExtraThrow()) {
-                    bonusThrowChain(randomMode, collected);
+                    // recursive call without passing a flag
+                    bonusThrowChain(collected);
                 } else {
                     yutResults.addAll(collected);
                     updateYutDisplay();
@@ -219,7 +254,6 @@ public class FXGameController implements Initializable {
             });
         });
     }
-
 
 
     /**
@@ -255,21 +289,25 @@ public class FXGameController implements Initializable {
         logArea.positionCaret(logArea.getLength());
     }
     
-    /** 단일 윷 결과 처리, 연속 던지기 재귀 호출 */
-    private void handleSingleThrow(YutResult r, boolean randomMode) {
+    /**
+     * 단일 윷 결과 처리, grantsExtraThrow() 일 때마다
+     * 던지기 모드를 새로 선택하도록 변경.
+     */
+    private void handleSingleThrow(YutResult r) {
         log("던진 결과: " + r);
         yutResults.add(r);
-        updateYutDisplay();  // 아직 highlight 없음
+        updateYutDisplay();
 
         if (r.grantsExtraThrow()) {
-            // 연속 던지기 (랜덤/지정)
+            // 매번 모드 선택
+            boolean randomMode = FXDialog.askRandomMode();
             if (randomMode) {
                 YutResult next = YutResult.throwYut(random);
-                playYutAnimation(next, () -> handleSingleThrow(next, true));
+                playYutAnimation(next, () -> handleSingleThrow(next));
             } else {
                 YutResult next = FXDialog.askManualThrow();
                 if (next != null) {
-                    playYutAnimation(next, () -> handleSingleThrow(next, false));
+                    playYutAnimation(next, () -> handleSingleThrow(next));
                 } else {
                     selectAndPromptNextYut();
                 }
@@ -278,6 +316,7 @@ public class FXGameController implements Initializable {
             selectAndPromptNextYut();
         }
     }
+
 
     private void selectAndPromptNextYut() {
         // 반드시 runLater 바깥: 이미 안전한 타이밍임

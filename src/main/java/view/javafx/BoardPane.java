@@ -2,6 +2,7 @@ package view.javafx;
 
 import javafx.animation.TranslateTransition;
 import javafx.animation.SequentialTransition;
+import javafx.animation.ParallelTransition;
 import javafx.animation.PathTransition;
 import javafx.animation.PauseTransition;
 import javafx.geometry.Point2D;
@@ -294,54 +295,103 @@ public class BoardPane extends Pane {
      * 말(p)가 pathNodes 에 적힌 순서대로 움직이는 애니메이션.
      * 끝나면 onFinished.run() 호출.
      */
-    public void animateAlongPath(Piece piece, int steps, Runnable onFinished) {
-        // 1) ImageView 꺼내기
-        ImageView iv = pieceNodes.get(piece);
-        if (iv == null || steps <= 0) {
+    public void animateAlongPath(Piece piece, BoardNode srcNode, int steps, Runnable onFinished) {
+    	 // 1) 출발 노드 결정
+        BoardNode src = (srcNode == null)
+            ? currentBoard.getStart()
+            : srcNode;
+
+        // 2) 모델 경로 계산
+        List<BoardNode> pathNodes = currentBoard.calculatePath(src, steps);
+        if (pathNodes.isEmpty()) {
             onFinished.run();
             return;
         }
 
-        // 2) 모델 src 노드와 경로 리스트 구하기
-        BoardNode src = piece.getPosition() == null
-            ? currentBoard.getStart()
-            : piece.getPosition();
-        List<BoardNode> pathNodes = currentBoard.calculatePath(src, steps);
-
-        // 3) Path 만들기
-        Path path = new Path();
-        // 3-a) 시작 좌표: 현재 iv 의 센터
-        Bounds b = iv.localToParent(iv.getBoundsInLocal());
-        double startX = b.getMinX() + b.getWidth()/2;
-        double startY = b.getMinY() + b.getHeight()/2;
-        path.getElements().add(new MoveTo(startX, startY));
-
-        // 3-b) 각 BoardNode 가리키는 화면 좌표
-        double w = getWidth(), h = getHeight();
-        double scale = Math.min(w, h) / 25.0;
-        double ox = (w - scale*25)/2 + 70;
-        double oy = (h - scale*25)/2 + 30;
-
-        for (BoardNode bn : pathNodes) {
-            Point2D pos = nodePositions.get(bn.getId());
-            double x = ox + pos.getX()*scale;
-            double y = oy + pos.getY()*scale;
-            path.getElements().add(new LineTo(x, y));
+        // 3) 같은 칸(src)에 있는 내 말 전부 수집
+        List<Piece> stackPieces = currentPieces.stream()
+            .filter(p -> Objects.equals(p.getPosition(), src)
+                      && p.getOwner().equals(piece.getOwner()))
+            .toList();
+        if (stackPieces.isEmpty()) {
+            onFinished.run();
+            return;
         }
 
-        // 4) PathTransition 실행
-        PathTransition pt = new PathTransition(
-            Duration.seconds(pathNodes.size() * 0.2),
-            path,
-            iv
-        );
-        pt.setOnFinished(evt -> {
-            // 잠깐 정지 후 콜백
+        // 4) 화면 좌표 준비 (START 포함)
+        double w = getWidth(), h = getHeight();
+        double scale = Math.min(w, h) / 25.0;
+        double ox = (w - scale*25)/2 + 70, oy = (h - scale*25)/2 + 30;
+
+
+        List<Point2D> screenPoints = new ArrayList<>();
+
+        // (A) 대기장에서 올라왔으면 START 먼저
+        if (srcNode == null) {
+        	BoardNode startNode = currentBoard.getStart();
+        	Point2D sp = nodePositions.get(startNode.getId());
+        	screenPoints.add(new Point2D(
+        			ox + sp.getX()*scale,
+        			oy + sp.getY()*scale
+        			));
+        }
+
+        // (B) 실제 이동 경로를 돌면서
+        BoardNode finishNode = currentBoard.getStart();
+        for (BoardNode bn : pathNodes) {
+        	Point2D p = nodePositions.get(bn.getId());
+        	screenPoints.add(new Point2D(
+        			ox + p.getX()*scale,
+        			oy + p.getY()*scale
+        			));
+        	// 만약 이 bn이 START라면(=완주 지점) 즉시 루프 종료
+        	if (bn.equals(finishNode)) {
+        		break;
+        	}
+        }
+
+        // 5) 각 말(ImageView)마다 PathTransition 생성
+        List<PathTransition> transitions = new ArrayList<>();
+        for (Piece p : stackPieces) {
+            ImageView iv = pieceNodes.get(p);
+            if (iv == null) continue;
+
+            // a) 현재 화면상의 센터 위치
+            Bounds b = iv.localToParent(iv.getBoundsInLocal());
+            double startX = b.getMinX() + b.getWidth()/2;
+            double startY = b.getMinY() + b.getHeight()/2;
+
+            // b) Path 구성
+            Path path = new Path();
+            path.getElements().add(new MoveTo(startX, startY));
+            for (Point2D pt : screenPoints) {
+                path.getElements().add(new LineTo(pt.getX(), pt.getY()));
+            }
+
+            // c) PathTransition
+            PathTransition ptTrans = new PathTransition(
+                Duration.seconds(screenPoints.size() * 0.2),
+                path,
+                iv
+            );
+            transitions.add(ptTrans);
+        }
+
+        if (transitions.isEmpty()) {
+            onFinished.run();
+            return;
+        }
+
+        // 6) ParallelTransition 으로 동시에 재생
+        ParallelTransition parallel = new ParallelTransition();
+        parallel.getChildren().addAll(transitions);
+        parallel.setOnFinished(evt -> {
+            // 잠깐 멈춘 뒤 콜백 실행
             PauseTransition pause = new PauseTransition(Duration.seconds(0.1));
             pause.setOnFinished(e2 -> onFinished.run());
             pause.play();
         });
-        pt.play();
+        parallel.play();
     }
     /** 대기 슬롯 좌표 얻기 (이전 코드 재사용) */
     private Point2D findWaitingSlotFor(Piece piece) {
