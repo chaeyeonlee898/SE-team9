@@ -1,0 +1,63 @@
+// ✅ JavaFX 포함 fat JAR (standalone 실행 파일 생성용)
+// 이 설정으로 build/libs/SE-team9-1.0.jar 더블클릭 또는 java -jar 가능
+
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.0.13'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'org.example'
+version = '1.0'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    def javafxVersion = "21.0.1"
+    def osName = System.getProperty("os.name").toLowerCase()
+    def platform = osName.contains("win") ? "windows" : osName.contains("mac") ? "mac" : osName.contains("linux") ? "linux" : null
+    if (platform == null) throw new GradleException("Unsupported OS: $osName")
+
+    // JavaFX
+    implementation "org.openjfx:javafx-controls:${javafxVersion}:${platform}"
+    implementation "org.openjfx:javafx-fxml:${javafxVersion}:${platform}"
+    implementation "org.openjfx:javafx-graphics:${javafxVersion}:${platform}"
+    implementation "org.openjfx:javafx-base:${javafxVersion}:${platform}"
+
+    // ✅ JUnit 테스트 (수정)
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+}
+
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+application {
+    mainClass = 'app.MainLauncher'
+}
+
+javafx {
+    version = "21.0.1"
+    modules = [ 'javafx.controls', 'javafx.fxml' ]
+}
+
+shadowJar {
+    archiveBaseName.set('SE-team9')
+    archiveClassifier.set('')
+    archiveVersion.set('1.0')
+    mergeServiceFiles()
+    manifest {
+        attributes 'Main-Class': application.mainClass
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
