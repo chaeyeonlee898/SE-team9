@@ -153,6 +153,30 @@ public class FXGameController implements Initializable {
                 updateYutDisplay();
             }
 
+            // (2) 먼저 승리 체크
+            if (game.isCurrentPlayerWin()) {
+                boolean again = FXDialog.confirmRestart(game.getCurrentPlayer().getName());
+                Stage stage = (Stage) throwButton.getScene().getWindow();
+
+                if (again) {
+                    try {
+                        FXMLLoader loader = new FXMLLoader(
+                                getClass().getResource("/fxml/StartPane.fxml")
+                        );
+                        Parent startRoot = loader.load();
+                        FXStartController startCtrl = loader.getController();
+                        startCtrl.setPrimaryStage(stage);
+                        Scene startScene = new Scene(startRoot, 600, 400);
+                        stage.setScene(startScene);
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                } else {
+                    Platform.exit();
+                }
+                return;
+            }
+
             // (2) 캡처 보너스가 있으면 보너스 던지기 체인으로 분기
             if (captured) {
                 // 여기서 바로 askRandomMode 하면 에러 → runLater 안으로 들어왔으니 안전
