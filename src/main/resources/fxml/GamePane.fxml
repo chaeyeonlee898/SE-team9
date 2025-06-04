@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.Region?> 
+<?import view.javafx.BoardPane?>
+
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="controller.FXGameController"
+            stylesheets="@../css/style.css">
+
+  <!-- 상단 -->
+  <top>
+    <HBox spacing="10" alignment="CENTER_LEFT">
+      <padding>
+        <Insets top="10" right="10" bottom="10" left="10"/>
+      </padding>
+      <children>
+        <Label fx:id="turnLabel" text="현재 플레이어:"/>
+        <Label fx:id="statusLabel" text="완주: 0 / 남은 말: 0"/>
+        <Button fx:id="throwButton" text="윷 던지기"/>
+      </children>
+    </HBox>
+  </top>
+
+  <!-- 중앙: HBox 로 보드 + yutContainer 를 나란히 배치 -->
+  <center>
+    <HBox>
+      <!-- 1) 보드: 남은 공간 전부 차지 -->
+      <BoardPane fx:id="boardPane" HBox.hgrow="ALWAYS"/>
+
+      <!-- 2) 윷 컨테이너: 보드 바로 옆 -->
+      <VBox fx:id="yutContainer"
+            spacing="10"
+            alignment="CENTER"
+            prefWidth="320"
+            style="-fx-padding:20;">
+        <children>
+          <ImageView fx:id="staticYutView"
+                     fitWidth="300" fitHeight="300"
+                     preserveRatio="true"/>
+          <HBox fx:id="yutBox"
+                spacing="8"
+                alignment="CENTER"
+                style="-fx-background-color: rgba(255,255,255,0.8);
+                       -fx-border-color: gray;
+                       -fx-border-radius: 4;
+                       -fx-background-radius: 4;
+                       -fx-padding: 6;"/>
+        </children>
+      </VBox>
+
+      <!-- 3) Spacer: 고정 너비(예: 80px)로 빈 공간 생성 -->
+      <Region prefWidth="80"/>
+    </HBox>
+  </center>
+
+
+  <!-- 하단 로그 -->
+  <bottom>
+    <TextArea fx:id="logArea"
+              prefRowCount="4"
+              editable="false"/>
+  </bottom>
+</BorderPane>
