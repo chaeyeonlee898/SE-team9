@@ -9,7 +9,6 @@ import model.*;
 
 @DisplayName("SquareBoard 이동 로직 전체 테스트")
 public class SquareUnitTest extends AbstractBoardTest {
-
     @Override
     protected Board createBoard() {
         return new SquareBoard();
