@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import model.*;
 @DisplayName("PentagonBoard 교차점별 이동 로직 테스트")
-public class PentagonBoardTest extends AbstractBoardTest {
+public class PentagonUnitTest extends AbstractBoardTest {
 
     @Override
     protected Board createBoard() {

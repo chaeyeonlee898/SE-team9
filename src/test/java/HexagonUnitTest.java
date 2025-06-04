@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 import model.*;
 @DisplayName("HexagonBoard 교차점별 이동 로직 테스트")
-public class HexagonBoardTest extends AbstractBoardTest {
+public class HexagonUnitTest extends AbstractBoardTest {
 
     @Override
     protected Board createBoard() {

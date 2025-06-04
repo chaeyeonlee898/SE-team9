@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import model.*;
 
 @DisplayName("SquareBoard 이동 로직 전체 테스트")
-public class SquareBoardTest extends AbstractBoardTest {
+public class SquareUnitTest extends AbstractBoardTest {
 
     @Override
     protected Board createBoard() {
